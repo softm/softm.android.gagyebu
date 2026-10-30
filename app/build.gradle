@@ -1,0 +1,120 @@
+plugins {
+    id 'com.android.application'
+}
+
+def releaseSigning = new Properties()
+def externalSigningPath = providers.gradleProperty('signingProperties').orNull
+def signingFile = externalSigningPath ? file(externalSigningPath) : rootProject.file('signing.properties')
+if (signingFile.exists()) {
+    signingFile.withInputStream { releaseSigning.load(it) }
+}
+def resolveSigningStore = { configuredStore ->
+    if (!configuredStore) return null
+    def candidate = new File(configuredStore)
+    candidate.isAbsolute() ? candidate : new File(signingFile.parentFile, configuredStore)
+}
+def adFitBannerAdUnitId = providers.gradleProperty('adfitBannerAdUnitId').orElse('').get().trim()
+if (adFitBannerAdUnitId && !(adFitBannerAdUnitId ==~ /DAN-[A-Za-z0-9]+/)) {
+    throw new GradleException('adfitBannerAdUnitId는 AdFit에서 발급한 DAN- 형식이어야 합니다.')
+}
+
+android {
+    namespace 'softm.android.gagyebu'
+    compileSdk 36
+
+    buildFeatures {
+        resValues true
+    }
+
+    defaultConfig {
+        applicationId 'softm.android.gagyebu'
+        minSdk 24
+        targetSdk 36
+        versionCode 6
+        versionName '1.0.5'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+        resValue 'string', 'adfit_banner_ad_unit_id', adFitBannerAdUnitId
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    signingConfigs {
+        release {
+            if (signingFile.exists()) {
+                def configuredStore = releaseSigning.getProperty('storeFile')
+                storeFile resolveSigningStore(configuredStore)
+                storePassword releaseSigning.getProperty('storePassword')
+                keyAlias releaseSigning.getProperty('keyAlias')
+                keyPassword releaseSigning.getProperty('keyPassword')
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+            resValue 'string', 'admob_app_id', 'ca-app-pub-3940256099942544~3347511713'
+            resValue 'string', 'admob_native_ad_unit_id', 'ca-app-pub-3940256099942544/2247696110'
+            resValue 'string', 'admob_banner_ad_unit_id', 'ca-app-pub-3940256099942544/6300978111'
+            resValue 'string', 'admob_interstitial_ad_unit_id', 'ca-app-pub-3940256099942544/1033173712'
+            resValue 'string', 'admob_exit_mrec_ad_unit_id', 'ca-app-pub-3940256099942544/6300978111'
+        }
+        release {
+            resValue 'string', 'admob_app_id', 'ca-app-pub-4219853075548260~3340019675'
+            resValue 'string', 'admob_native_ad_unit_id', 'ca-app-pub-4219853075548260/9719212884'
+            resValue 'string', 'admob_banner_ad_unit_id', 'ca-app-pub-4219853075548260/7140624349'
+            resValue 'string', 'admob_interstitial_ad_unit_id', 'ca-app-pub-4219853075548260/7227201903'
+            resValue 'string', 'admob_exit_mrec_ad_unit_id', 'ca-app-pub-4219853075548260/6416809423'
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (signingFile.exists()) signingConfig signingConfigs.release
+        }
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
+    lint {
+        abortOnError true
+        checkReleaseBuilds true
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.17.1'
+    implementation 'com.google.android.gms:play-services-ads:25.5.0'
+    implementation 'com.google.android.ump:user-messaging-platform:4.0.0'
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.0.21'
+    implementation 'com.google.android.gms:play-services-ads-identifier:18.0.1'
+    implementation 'com.kakao.adfit:ads-base:3.23.1'
+    implementation 'com.google.mlkit:text-recognition-korean:16.0.1'
+    testImplementation 'junit:junit:4.13.2'
+}
+
+tasks.configureEach { task ->
+    if (task.name == 'validateSigningRelease') {
+        task.doFirst {
+            if (!signingFile.exists()) {
+                throw new GradleException(
+                    '릴리스 서명 설정이 필요합니다. signing.properties를 만들거나 ' +
+                    '-PsigningProperties=/absolute/path/signing.properties를 지정하세요.'
+                )
+            }
+            ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].each { key ->
+                if (!releaseSigning.getProperty(key)) {
+                    throw new GradleException('서명 설정 누락: ' + key)
+                }
+            }
+            def configuredStore = resolveSigningStore(releaseSigning.getProperty('storeFile'))
+            if (!configuredStore.isFile()) {
+                throw new GradleException('서명 키 파일을 찾을 수 없습니다: ' + configuredStore)
+            }
+        }
+    }
+}
+
