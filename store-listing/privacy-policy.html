@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>가계부 개인정보처리방침</title>
+  <style>
+    body{margin:0;background:#f5f7f5;color:#172a27;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans KR",sans-serif;line-height:1.75}
+    main{max-width:780px;margin:0 auto;padding:48px 24px 80px}
+    h1{font-size:2rem}h2{margin-top:2.25rem;color:#17675d}section{background:#fff;border:1px solid #dfe8e4;border-radius:18px;padding:8px 24px 22px;margin:18px 0}
+    code{background:#edf5f2;padding:2px 6px;border-radius:5px}.meta{color:#667b76}
+  </style>
+</head>
+<body><main>
+  <h1>가계부 개인정보처리방침</h1>
+  <p class="meta">시행일: 2026년 10월 30일</p>
+  <p>가계부는 사용자가 직접 관리하는 장부와 금융 거래 후보를 안전하게 처리하는 것을 원칙으로 합니다.</p>
+
+  <section><h2>처리하는 정보</h2>
+    <p>사용자가 기능을 허용하면 카드 결제, 입금, 출금으로 보이는 앱 알림과 이번 달 1일 이후의 기존 SMS 및 새 SMS의 발신 정보·본문·수신 시각을 단말에서 분석합니다. 금액과 금융 키워드가 함께 있는 내용만 거래 후보로 보관하며 광고, 인증번호 및 OTP 문구는 제외합니다.</p>
+    <p><code>READ_SMS</code>는 사용자가 ‘이번 달 금융 문자 분석’을 선택한 경우에만 요청하며 조회 기간을 이번 달 1일 이후로 제한합니다.</p>
+    <p>영수증 사진은 Google ML Kit의 기기 내 OCR 모델로 날짜·금액·상호 후보를 추출하며, 사용자가 확인하기 전에는 거래로 자동 저장하지 않습니다.</p>
+  </section>
+
+  <section><h2>이용 목적</h2>
+    <p>처리 정보는 거래 유형, 금액, 사용처와 날짜를 추출하여 사용자가 확인할 가계부 거래 후보를 만드는 용도로만 사용합니다. 거래는 사용자의 확인 없이 자동 확정되지 않습니다.</p>
+  </section>
+
+  <section><h2>보관 및 삭제</h2>
+    <p>금융 알림/SMS 원문과 파싱 결과는 앱 전용 SQLite에 저장하기 전에 Android Keystore AES-GCM으로 암호화합니다. Android 백업과 기기 간 전송에서 캡처 데이터베이스를 제외합니다.</p>
+    <p>사용자는 앱 설정에서 감지 원문 전체를 삭제할 수 있습니다. Android 앱 데이터 삭제 또는 앱 제거 시 단말의 앱 데이터가 삭제됩니다. 이미 사용자가 확인해 장부에 저장한 거래는 감지 원문 삭제와 별도로 관리됩니다.</p>
+  </section>
+
+  <section><h2>제3자 제공 및 광고</h2>
+    <p>금융 알림/SMS 원문, 파싱된 금액·사용처와 가계부 거래를 광고 타기팅에 사용하거나 광고 사업자에게 전달하지 않습니다.</p>
+    <p>앱은 Google Mobile Ads와 Google UMP를 사용하며, 향후 활성화 시 Kakao AdFit를 대체 광고로 사용할 수 있습니다. 광고 사업자는 광고 게재, 측정, 빈도 제한, 보안 및 부정 사용 방지를 위해 광고 식별자, 기기·앱 정보, IP 기반 대략적 위치, 광고 상호작용 정보를 처리할 수 있습니다. 관련 지역에서는 동의 화면과 광고 개인정보 설정을 제공합니다.</p>
+  </section>
+
+  <section><h2>권한과 선택권</h2>
+    <p>알림 접근은 Android 특별 접근 설정에서 사용자가 직접 활성화합니다. SMS 및 알림 표시 권한도 앱의 설명을 확인한 뒤 개별적으로 허용합니다. 모든 권한은 Android 설정에서 철회할 수 있으며, 허용하지 않아도 거래를 직접 입력하는 기본 가계부 기능을 이용할 수 있습니다.</p>
+  </section>
+
+  <section><h2>문의</h2>
+    <p>개인정보 관련 문의는 Google Play 스토어의 개발자 연락처를 이용해 주세요.</p>
+  </section>
+</main></body>
+</html>
