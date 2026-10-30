@@ -1,0 +1,1 @@
+{"name":"가계부 - 돈의 흐름을 한눈에","short_name":"가계부","description":"간단한 기록, 투명한 자산·지출 관리","start_url":"./","scope":"./","display":"standalone","background_color":"#f5f7f5","theme_color":"#217d71","lang":"ko","icons":[{"src":"./icons/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}
