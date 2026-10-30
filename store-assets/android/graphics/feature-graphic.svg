@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff637e"/>
+      <stop offset="1" stop-color="#ff9a72"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="500" rx="0" fill="url(#bg)"/>
+  <circle cx="845" cy="90" r="210" fill="none" stroke="#ffd0d4" stroke-opacity=".34" stroke-width="3"/>
+  <circle cx="935" cy="430" r="260" fill="none" stroke="#fff0f1" stroke-opacity=".24" stroke-width="3"/>
+  <image href="store-icon.png" x="72" y="84" width="150" height="150"/>
+  <text x="72" y="330" fill="#fff" font-family="Apple SD Gothic Neo,Noto Sans KR,sans-serif" font-size="64" font-weight="700">가계부</text>
+  <text x="72" y="394" fill="#fff0f1" font-family="Apple SD Gothic Neo,Noto Sans KR,sans-serif" font-size="36" font-weight="500">돈의 흐름, 한눈에</text>
+  <text x="72" y="445" fill="#ffe2e5" font-family="Apple SD Gothic Neo,Noto Sans KR,sans-serif" font-size="23">금융 알림 · 선택적 SMS 감지 · 확인 후 기록</text>
+</svg>
