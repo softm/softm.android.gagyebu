@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">가계부</string>
+    <string name="app_tagline">돈의 흐름을 한눈에</string>
+    <string name="app_description">간단한 기록, 투명한 자산·지출 관리</string>
+    <string name="notification_listener_label">가계부 금융 알림 감지</string>
+    <string name="capture_channel_name">자동 거래 감지</string>
+    <string name="capture_channel_description">카드 결제, 입금, 출금으로 보이는 알림을 확인 요청합니다.</string>
+    <string name="ad_attribution">광고</string>
+</resources>
+
