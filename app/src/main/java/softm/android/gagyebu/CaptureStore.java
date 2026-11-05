@@ -132,6 +132,19 @@ public final class CaptureStore {
         return output;
     }
 
+    public synchronized JSONObject findJson(String captureId) {
+        if (!validId(captureId)) return null;
+        // Imported captures remain encrypted on this device until explicitly deleted.
+        try (Cursor cursor = database.getReadableDatabase().query(
+            "captures", null, "capture_id=?", new String[]{captureId},
+            null, null, null, "1"
+        )) {
+            return cursor.moveToFirst() ? toJson(cursor) : null;
+        } catch (JSONException failure) {
+            throw new IllegalStateException("감지 원문을 불러오지 못했습니다.", failure);
+        }
+    }
+
     public synchronized void markImported(JSONArray captureIds) {
         SQLiteDatabase writable = database.getWritableDatabase();
         writable.beginTransaction();

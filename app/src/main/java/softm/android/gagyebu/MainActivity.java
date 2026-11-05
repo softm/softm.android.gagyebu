@@ -116,6 +116,7 @@ public final class MainActivity extends Activity {
     private boolean interstitialLoading;
     private int interstitialsShown;
     private boolean activityResumed;
+    private SuiteAuthManager suiteAuth;
     private final Runnable interstitialOpportunity = this::showInterstitialIfReady;
 
     @Override
@@ -126,11 +127,14 @@ public final class MainActivity extends Activity {
         readLaunchIntent(getIntent());
         buildLayout();
         configureWebView();
+        suiteAuth = new SuiteAuthManager(this, () -> dispatchNativeEvent("gagyebu:account-changed"));
+        suiteAuth.handleIntent(getIntent());
         registerCaptureReceiver();
         initializeAdvertising();
 
         if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) {
-            web.loadUrl(HOME);
+            web.getSettings().setCacheMode(WebSettings.LOAD_NO_CACHE);
+            web.loadUrl(HOME, java.util.Collections.singletonMap("Cache-Control", "no-cache"));
         }
         if (Build.VERSION.SDK_INT >= 33) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
@@ -238,6 +242,7 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                view.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
                 progress.setVisibility(View.GONE);
                 webReady = trusted(Uri.parse(url));
                 if (webReady) {
@@ -353,9 +358,30 @@ public final class MainActivity extends Activity {
                 scanCurrentMonthSmsHistory(replyProxy, requestId, false);
                 return;
             }
+            if("ledgerSync".equals(action)){
+                final String ledgerId=requestId;
+                suiteAuth.syncLedger(payload,value->reply(replyProxy,ledgerId,value!=null,value==null?JSONObject.NULL:value,value==null?"장부 연결 실패":null));return;
+            }
             Object result;
             switch (action) {
+                case "accountStatus" -> result = suiteAuth.snapshot();
+                case "accountLogin" -> { suiteAuth.login(payload.optString("mode", "login")); result = true; }
+                case "accountCancel" -> { suiteAuth.cancel(); result = true; }
+                case "accountLogout" -> { suiteAuth.logout(); result = true; }
                 case "pending" -> result = CaptureStore.get(this).pendingJson(payload.optInt("limit", 100));
+                case "captureSource" -> {
+                    JSONObject capture = CaptureStore.get(this).findJson(payload.optString("captureId", ""));
+                    if (capture != null && "notification".equals(capture.optString("sourceType"))) {
+                        try {
+                            capture.put("sourceAppName", getPackageManager()
+                                .getApplicationInfo(capture.optString("sourcePackage"), 0)
+                                .loadLabel(getPackageManager()).toString());
+                        } catch (PackageManager.NameNotFoundException ignored) {
+                            // The original package name is still available if the app was removed.
+                        }
+                    }
+                    result = capture == null ? JSONObject.NULL : capture;
+                }
                 case "status" -> result = permissionState();
                 case "markImported" -> {
                     JSONArray ids = payload.optJSONArray("captureIds");
@@ -1120,17 +1146,27 @@ public final class MainActivity extends Activity {
 
     private void handleBack() {
         if (exitDialog != null && exitDialog.isShowing()) return;
-        if (web.canGoBack()) {
-            web.goBack();
-            return;
-        }
-        showExitConfirmation();
+        web.evaluateJavascript(
+            "(() => {const account = document.querySelector('softm-site-account');" +
+                "const profile = account?.shadowRoot?.getElementById('profile');" +
+                "if (profile?.getAttribute('aria-expanded') === 'true') {profile.click(); return true;}" +
+                "const source = document.getElementById('transactionSourceBody');" +
+                "if (!source) return false;" +
+                "source.closest('.dialog').querySelector('[data-action=\"dismiss-modal\"]').click();" +
+                "return true;})()",
+            closed -> {
+                if ("true".equals(closed)) return;
+                if (web.canGoBack()) web.goBack();
+                else showExitConfirmation();
+            }
+        );
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        if (suiteAuth != null) suiteAuth.handleIntent(intent);
         readLaunchIntent(intent);
         if (launchCaptureId != null) openCaptureInWeb(launchCaptureId);
     }
@@ -1143,6 +1179,7 @@ public final class MainActivity extends Activity {
         if (adaptiveBannerAd != null) adaptiveBannerAd.resume();
         if (adFitBanner != null) adFitBanner.resume();
         dispatchNativeEvent("gagyebu:native-status");
+        if (suiteAuth != null) suiteAuth.refresh();
     }
 
     @Override
@@ -1210,6 +1247,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (suiteAuth != null) suiteAuth.destroy();
         adHandler.removeCallbacks(interstitialOpportunity);
         if (captureReceiver != null) unregisterReceiver(captureReceiver);
         if (fileChooser != null) fileChooser.onReceiveValue(null);
