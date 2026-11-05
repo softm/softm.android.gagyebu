@@ -17,12 +17,13 @@
 <div class="app-layout">
 <aside class="sidebar" aria-label="주 메뉴">
  <a class="brand" href="./index.html" data-tab="home" aria-label="가계부 홈"><span class="brand-symbol"><img src="./icons/icon.png" alt="" /></span><span><span class="brand-title">가계부</span><div class="brand-sub" id="brandSub">나만의 소비 기록</div></span></a>
+ <div class="desktop-account-row"><span>한눈 공통 계정</span><span id="desktopAccountSlot"></span></div>
  <div class="sidebar-label">MY MONEY</div>
  <nav class="desktop-nav" id="desktopNav" aria-label="PC 메뉴"></nav>
  <div class="sidebar-bottom" id="sideBottom"></div>
 </aside>
 <div style="display:flex;flex-direction:column;min-width:0;flex:1">
-<header class="mobile-header"><a class="mobile-brand" href="./index.html" data-tab="home" aria-label="가계부 홈"><span class="brand-symbol"><img src="./icons/icon.png" alt="" /></span>가계부<span class="mobile-sub">/ <span id="mobileTitle">홈</span></span></a><button type="button" class="mobile-settings" data-tab="settings" aria-label="설정 열기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.93 4.93l2.12 2.12m9.9 9.9 2.12 2.12M4.93 19.07l2.12-2.12m9.9-9.9 2.12-2.12"/></svg><span>설정</span></button></header>
+<header class="mobile-header"><a class="mobile-brand" href="./index.html" data-tab="home" aria-label="가계부 홈"><span class="brand-symbol"><img src="./icons/icon.png" alt="" /></span>가계부<span class="mobile-sub">/ <span id="mobileTitle">홈</span></span></a><div class="mobile-header-actions"><span id="mobileAccountSlot"></span><button type="button" class="mobile-settings" data-tab="settings" aria-label="설정 열기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.93 4.93l2.12 2.12m9.9 9.9 2.12 2.12M4.93 19.07l2.12-2.12m9.9-9.9 2.12-2.12"/></svg><span>설정</span></button></div></header>
 <main class="main-content" id="page" aria-live="polite"><p>가계부 불러오는 중...</p></main>
 </div>
 </div>
