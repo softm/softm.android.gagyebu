@@ -89,12 +89,18 @@ small{font-size:12px}
 .text-btn{border:0;color:var(--primary);background:transparent;display:inline-flex;align-items:center;gap:3px;white-space:nowrap;font-size:12px;font-weight:720;padding:2px}
 .transaction-list{display:flex;flex-direction:column}
 .transaction-row{display:flex;align-items:center;gap:13px;padding:13px 0;border-bottom:1px solid var(--border);min-width:0}
+/* Keep the review action below the transaction instead of squeezing its title. */
+.transaction-row.row-pending{display:grid;grid-template-columns:auto minmax(0,1fr) auto}
 .transaction-row:first-child{padding-top:4px}
 .transaction-row:last-child{border-bottom:0}
 .transaction-icon{width:40px;height:40px;background:var(--icon-bg,#eee);border-radius:13px;display:grid;place-items:center;flex-shrink:0;font-size:18px;color:#287365}
 .transaction-info{flex:1;min-width:0}
 .transaction-name{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-weight:740;font-size:13px;line-height:1.4;overflow-wrap:anywhere}
 .transaction-info p{margin:6px 0 0;font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.transaction-source-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;max-width:100%;min-height:36px;margin-top:7px;padding:5px 9px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--primary);font-size:12px;font-weight:750;line-height:1.4}
+.transaction-source-btn svg{flex-shrink:0}
+.transaction-source-btn:hover{background:var(--surface2)}
+.transaction-source-btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 .transaction-tail{text-align:right;min-width:fit-content}
 .transaction-amount{font-weight:790;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .transaction-amount.negative{color:#cf745b}
@@ -103,7 +109,7 @@ small{font-size:12px}
 .row-actions{display:flex;justify-content:flex-end;margin-top:5px;gap:3px}
 .row-actions button{width:27px;height:27px;border:0;background:transparent;color:var(--muted);display:grid;place-items:center;border-radius:7px}
 .row-actions button:hover{background:var(--surface2);color:var(--text)}
-.pending-confirm{flex:0 0 calc(100% - 54px);margin:2px 0 3px 54px;display:flex;align-items:center;justify-content:flex-end;gap:12px}
+.pending-confirm{grid-column:2 / -1;min-width:0;margin:2px 0 3px;display:flex;align-items:center;justify-content:flex-end;gap:12px}
 .pending-confirm span{color:var(--muted);font-size:11px;line-height:1.4}
 .pending-confirm .confirm-ledger-btn{min-width:142px;min-height:42px;border:0;border-radius:13px;padding:9px 15px;background:linear-gradient(135deg,#ff5e7e,#ff7f96);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:13px;font-weight:850;white-space:nowrap;box-shadow:0 8px 18px rgba(255,94,126,.22)}
 .pending-confirm .confirm-ledger-btn:hover{filter:brightness(.97);transform:translateY(-1px)}
@@ -236,6 +242,25 @@ small{font-size:12px}
 .dialog-head{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:21px}
 .dialog-head h2{font-size:21px;letter-spacing:-.6px;margin:4px 0 0}
 .dialog-content{min-width:0}
+.source-summary{display:flex;flex-direction:column;gap:6px;padding:14px;margin-bottom:18px;border:1px solid var(--border);border-radius:13px;background:var(--surface2);overflow-wrap:anywhere}
+.source-summary>span,.source-summary p{font-size:12px;color:var(--muted);margin:0}
+.source-summary strong{font-size:16px;line-height:1.5}
+.source-summary b{font-size:15px;color:var(--primary)}
+.source-meta{display:grid;gap:9px;margin:0 0 18px;font-size:13px}
+.source-meta>div{display:grid;grid-template-columns:72px minmax(0,1fr);gap:10px;line-height:1.6}
+.source-meta dt{color:var(--muted)}
+.source-meta dd{margin:0;overflow-wrap:anywhere}
+.source-section{margin:16px 0}
+.source-section h3{margin:0 0 8px;font-size:13px}
+.source-text{margin:0;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);font:inherit;font-size:14px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text}
+.source-receipt{display:block;width:100%;height:auto;border-radius:12px}
+.source-notice{padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+.source-notice p{margin:7px 0}
+.source-footnote{color:var(--muted);font-size:12px;line-height:1.6}
+.source-actions{margin-top:18px}
+.source-actions .btn-danger-outline{background:var(--surface);color:#b72f47;border-color:var(--danger);box-shadow:none}
+.source-actions .btn-danger-outline:hover{background:var(--surface2)}
+:root[data-theme=dark] .source-actions .btn-danger-outline{color:var(--danger)}
 .type-selector{display:flex;gap:7px;flex-wrap:wrap}
 .type-selector label{flex:1;min-width:72px}
 .type-selector input{position:absolute;opacity:0;width:1px;height:1px}
@@ -330,7 +355,7 @@ small{font-size:12px}
 .transaction-amount{font-size:11px}
 .transaction-list.full{padding:0 15px 10px}
 .transaction-list.full .transaction-row{padding:14px 0}
-.pending-confirm{flex-basis:100%;margin-left:43px;align-items:stretch;flex-direction:column;gap:7px}
+.pending-confirm{grid-column:1 / -1;align-items:stretch;flex-direction:column;gap:7px}
 .pending-confirm span{text-align:left}
 .pending-confirm .confirm-ledger-btn{width:100%;min-height:46px;font-size:14px}
 .review-guide{margin:0 13px 5px}
@@ -365,6 +390,7 @@ small{font-size:12px}
 .type-selector label{min-width:55px}
 .type-selector span{font-size:10px;padding:10px 2px}
 .form-actions .btn{padding:11px 13px}
+.source-actions{display:grid;grid-template-columns:auto minmax(0,1fr)}
 .starter-banner{align-items:stretch;flex-direction:column}
 .info-strip{flex-wrap:wrap}
 .info-strip .btn{margin-left:auto}
@@ -859,3 +885,9 @@ h1,h2,h3,.brand-title,.hero-total,.metric-value,.transaction-name,.transaction-a
   .category-meter{grid-template-columns:minmax(0,1fr) 112px}
   .category-setting-main{gap:9px}
 }
+
+/* Shared account menu slots remain visible at both navigation breakpoints. */
+.mobile-header-actions{display:flex;align-items:center;gap:5px;flex-shrink:0}
+#mobileAccountSlot,#desktopAccountSlot{display:inline-flex;align-items:center}
+.desktop-account-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;color:var(--muted);font-size:12px}
+@media(max-width:400px){.mobile-header-actions .mobile-settings{padding:9px}.mobile-header-actions .mobile-settings span{display:none}}

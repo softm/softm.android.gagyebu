@@ -1,6 +1,9 @@
+import {startLedger} from './account-ledger.js';
 import {KINDS,COLORS,initialState,money,isoDate,monthKey,shiftMonth,getPeriod,currentPeriodMonth,getSummary,getAccountBalances,calculateExpression,duplicateOf,suggestCategory,parsePastedLines,parseCsv,validateBackup,createDemoState} from './domain.js';
 import {loadState,saveState,loadUserState,loadUserDirty,loadUserSynced,loadDeviceId,saveUserState,clearUserState} from './db.js';
 import {CloudService} from './cloud.js';
+import {mountCommonAccount} from './common-account.js';
+let commonAccount=null;
 import {mergeGuestLedger,prepareLedgerMutation,rebaseOfflineChanges,resolveLedgerConflicts} from './ledger-sync.js';
 let state, busy=false, pendingImport=[], modalContext=null,deviceId='unknown';
 let authUser=null,activeUid=null,cloudReady=true,localDirty=false,cloudStatus='unconfigured',cloudMessage='';
@@ -174,7 +177,7 @@ function nativeRequest(action,payload={}){
  if(!installNativeBridge())return Promise.reject(new Error('Android 자동 기록 기능을 사용할 수 없습니다.'));
  const requestId=`native-${++nativeRequestSequence}`;
  return new Promise((resolve,reject)=>{
-  const timeout=action==='scanSmsHistory'?30000:10000;
+  const timeout=action==='ledgerSync'?35000:action==='scanSmsHistory'?30000:10000;
   const timer=setTimeout(()=>{nativeRequests.delete(requestId);reject(new Error('Android 응답 시간이 초과되었습니다.'));},timeout);
   nativeRequests.set(requestId,{resolve,reject,timer});
   try{window.AndroidLedger.postMessage(JSON.stringify({id:requestId,action,payload}));}
@@ -250,16 +253,21 @@ window.gagyebuNativeOpenCapture=captureId=>{
  nativeLaunchCapture=String(captureId||'');
  return nativeImportTargetReady?importNativeCaptures({focusId:nativeLaunchCapture,quiet:true}):Promise.resolve(null);
 };
+let syncLabel='이 기기의 장부';
+const ledgerLink=startLedger({onSwitch:()=>{closeModal();pendingImport=[];},getState:()=>state,setState:s=>{state=s;render();},isBusy:()=>busy||!!modalContext,
+ status:label=>{if(syncLabel!==label){syncLabel=label;if(state&&ui.tab==='settings')render();}},
+ request:payload=>nativeRequest('ledgerSync',payload)});
+function syncButtons(){return syncLabel.startsWith('충돌')?`<p>같은 항목의 변경이 겹쳤습니다. 충돌한 값에만 아래 선택을 적용합니다.</p><span class="settings-actions"><button class="btn btn-secondary" data-action="sync-mine">이 기기의 값 사용</button> <button class="btn btn-secondary" data-action="sync-remote">다른 기기의 값 사용</button></span>`:'';}
 async function mutate(fn,notice='저장했습니다.'){
- if(busy)return;
- busy=true;
+ if(busy||ledgerLink.blocked)return;
+ const syncScope=ledgerLink.scope;busy=true;
  try{
   const before=structuredClone(state),draft=structuredClone(state);
   fn(draft);validateBackup(draft);
   const next=prepareLedgerMutation(before,draft,{actorUid:activeUid||'guest',deviceId,idFactory:id});
   if(activeUid){await saveUserState(activeUid,next,{dirty:true});localDirty=true;}
   else await saveState(next);
-  state=next;render();if(notice)toast(notice);
+  if(syncScope!==ledgerLink.scope)return;state=next;ledgerLink.changed();render();if(notice)toast(notice);
   if(activeUid&&cloudReady)cloud.queueDiff(before,next).catch(e=>{console.error('Firestore sync:',e);toast('기기에는 저장했지만 서버 확인이 끝나지 않았습니다. 연결 후 자동 재전송합니다.','error');});
   else if(activeUid)toast('기기에 안전하게 저장했습니다. 서버 연결 후 자동 동기화합니다.');
  }catch(e){console.error(e);toast(`저장하지 못했습니다: ${e.message}`,'error');}
@@ -304,18 +312,22 @@ function render(){
  const nowCount=pendingCount();const navItem=([tab,label,icon])=>`<button class="nav-link ${ui.tab===tab?'active':''}" data-tab="${tab}" aria-current="${ui.tab===tab?'page':'false'}">${ico(icon,20)}<span>${label}</span>${tab==='transactions'&&nowCount?`<b class="nav-counter">${nowCount}</b>`:''}</button>`;
  $('#desktopNav').innerHTML=NAV.map(navItem).join('');$('#mobileNav').innerHTML=NAV.filter(([tab])=>tab!=='settings').map(navItem).join('');$('#brandSub').textContent='차곡차곡, 나의 돈 이야기';
  document.querySelector('.mobile-settings')?.classList.toggle('active',ui.tab==='settings');
- $('#sideBottom').innerHTML=`<div class="side-peek"><span class="side-peek-icon">${ico('shield',18)}</span><strong>${activeUid?'내 전용 클라우드 장부':'로컬 우선 가계부'}</strong><small>${esc(syncDescription())}</small></div><button class="sidebar-account-btn" data-tab="settings">${ico('shield',16)} ${activeUid?'내 계정·동기화':'로그인·동기화'}</button>`;
+ $('#sideBottom').innerHTML=`<div class="side-peek"><span class="side-peek-icon">${ico('shield',18)}</span><strong>${ledgerLink.signed?'한눈 계정 장부':activeUid?'내 전용 클라우드 장부':'이 기기의 장부'}</strong><small>${esc(syncDescription())}</small></div><button class="sidebar-account-btn" data-tab="settings">${ico('shield',16)} ${commonAccount?'한눈 공통 계정':activeUid?'내 계정·동기화':'로그인·동기화'}</button>`;
  $('#page').innerHTML=({home:renderHome,transactions:renderTransactions,calendar:renderCalendar,analytics:renderAnalytics,accounts:renderAccounts,settings:renderSettings})[ui.tab]();
  const tabTitle=NAV.find(x=>x[0]===ui.tab)?.[1]||'가계부';$('#mobileTitle').textContent=tabTitle;
 }
 function syncDescription(){
- if(!cloud.isConfigured())return 'Firebase 프로젝트 연결 전 · 이 기기에 저장';
+ if(ledgerLink.signed)return syncLabel;
+ if(commonAccount)return commonAccount.snapshot.user?syncLabel:'장부는 이 기기에 저장';
+ if(!cloud.isConfigured())return '이 기기에 저장';
  if(!activeUid)return '비로그인 모드 · 이 기기에 저장';
  if(localDirty)return '기기 변경사항 보관됨 · 전송 확인 필요';
  return ({loading:'클라우드 불러오는 중',offline:'오프라인 · 기기에 저장',saving:'Firestore 서버 확인 중',synced:'Firestore 서버 저장 확인 완료',error:'동기화 오류 · 로컬 기록 보관'})[cloudStatus]||'연결 확인 중';
 }
 function providerLoginButton(provider,label,classes){const item=cloud.getProviderAvailability()[provider];return `<button type="button" class="social-btn ${classes}" data-action="login-${provider}" ${item.enabled?'':`disabled title="${esc(item.reason)}"`}>${label}${item.enabled?'':`<small> · 설정 필요</small>`}</button>`;}
 function renderAuthPanel(){
+ if(commonAccount){const account=commonAccount.snapshot,user=account.user;return `<section class="panel account-panel"><div class="section-heading"><div><h2>한눈 공통 계정</h2><p>${user?esc(user.displayName||user.email||'내 계정')+' · 로그인됨':'다른 한눈 앱에서 쓰던 계정으로 로그인하세요.'}</p></div></div><p class="privacy-note">같은 한눈 계정의 PC와 모바일에서 장부를 공유합니다. 문자·알림 원본과 첨부파일은 기기에 남습니다.</p><p>${esc(syncLabel)}</p>${syncButtons()}<div class="settings-actions">${btn(user?'계정 메뉴 열기':'로그인 · 회원가입','common-account','','btn btn-secondary')}${account.status!=='idle'?btn('로그인 취소','common-account-cancel','','btn btn-secondary'):''}</div>${account.error?`<p class="form-note">${esc(account.error)}</p>`:''}</section>`;}
+
  const help='<a class="inline-link" target="_blank" rel="noopener noreferrer" href="https://github.com/softm/gagyebu/blob/main/docs/FIREBASE_SETUP.md">Firebase 연결 안내 ↗</a>';
  if(!cloud.isConfigured())return `<section class="panel account-panel"><div class="section-heading"><div><h2>계정 및 클라우드 보관</h2><p>로그인·동기화 연동 코드가 준비되었습니다.</p></div></div><p class="form-note">Firebase 프로젝트의 웹 설정값과 인증 제공자 설정을 등록해야 실제 로그인이 활성화됩니다. 그전까지 모든 기록은 이 브라우저에 보관됩니다.</p>${help}</section>`;
  if(!authUser)return `<section class="panel account-panel"><div class="section-heading"><div><h2>로그인 · 여러 기기 동기화</h2><p>로그인 후 내 장부가 Firestore에 저장됩니다. 비로그인 기록은 그대로 유지됩니다.</p></div></div>
@@ -334,6 +346,10 @@ function topBar(title,subtitle='',period=true,actions=''){
 }
 function recentList(items,limit=5){if(!items.length)return empty('✦','아직 기록이 없어요','오른쪽 위의 기록 추가 버튼으로 시작해 보세요.');return `<div class="transaction-list">${items.slice(0,limit).map(t=>transactionRow(t,true)).join('')}</div>`;}
 function kindLabel(kind){return KINDS[kind]||kind;}
+function transactionSourceButton(t){
+ if(!String(t.source||'').startsWith('android-')&&!t.sourceText&&!t.attachment&&!t.attachmentPath)return '';
+ return `<button type="button" class="transaction-source-btn" data-action="view-transaction-source" data-id="${esc(t.id)}" aria-label="${esc(t.title)} 원본 보기">${ico('receipt',15)} 원본 보기</button>`;
+}
 function transactionRow(t,compact=false){
  const cat=category(t.categoryId);const badge={expense:'negative',income:'positive',refund:'positive',transfer:'neutral',repayment:'neutral'}[t.kind];
  const direction=t.kind==='expense'||t.kind==='repayment'||t.kind==='transfer'?'-':'+';
@@ -342,7 +358,7 @@ function transactionRow(t,compact=false){
  const to=t.toAccountId?` → ${acc(t.toAccountId)?.name||'미지정'}`:'';
  return `<div class="transaction-row ${t.status==='pending'?'row-pending':''}">
  ${transactionIcon(t)}
- <div class="transaction-info"><div class="transaction-name">${esc(t.title)}${t.status==='pending'?`<span class="pill warning">확인 필요</span>`:''}${dup?`<span class="pill danger">중복 의심</span>`:''}${t.attachment||t.attachmentPath?`<span title="사진 첨부">${ico('image',14)}</span>`:''}</div><p>${dateFmt(t.date)} · ${esc(acc(t.accountId)?.name||'계정 미지정')}${esc(to)} · ${esc(cat?.name||kindLabel(t.kind))}</p></div>
+ <div class="transaction-info"><div class="transaction-name">${esc(t.title)}${t.status==='pending'?`<span class="pill warning">확인 필요</span>`:''}${dup?`<span class="pill danger">중복 의심</span>`:''}${t.attachment||t.attachmentPath?`<span title="사진 첨부">${ico('image',14)}</span>`:''}</div><p>${dateFmt(t.date)} · ${esc(acc(t.accountId)?.name||'계정 미지정')}${esc(to)} · ${esc(cat?.name||kindLabel(t.kind))}</p>${transactionSourceButton(t)}</div>
  <div class="transaction-tail"><div class="transaction-amount ${badge}">${sign}${m(t.amount)}</div>${compact?'':`<div class="row-actions"><button data-action="edit-transaction" data-id="${esc(t.id)}" title="수정" aria-label="거래 수정">${ico('edit',16)}</button>${t.kind==='expense'&&t.status==='confirmed'?`<button data-action="refund-transaction" data-id="${esc(t.id)}" title="환불 등록" aria-label="환불 등록">${ico('repeat',16)}</button>`:''}<button data-action="delete-transaction" data-id="${esc(t.id)}" title="삭제" aria-label="거래 삭제">${ico('trash',16)}</button></div>`}</div>${!compact&&t.status==='pending'?`<div class="pending-confirm"><span>금액·자산·분류가 맞으면 장부에 저장하세요.</span><button class="confirm-ledger-btn" data-action="confirm-transaction" data-id="${esc(t.id)}">${ico('check',20)} 가계부에 추가</button></div>`:''}</div>`;
 }
 function renderHome(){const s=currentSummary(),total=Math.max(1,s.budget),ratio=Math.max(0,Math.min(100,s.expense/total*100));
@@ -482,7 +498,39 @@ function renderSettings(){
  <section class="panel"><div class="section-heading"><div><h2>서비스 정보</h2></div></div><p class="settings-about"><strong>가계부 · GAGYEBU</strong><br/>기록을 더 간단하게, 돈의 흐름은 더 선명하게.</p><p class="settings-about">Android 버전 1.0.5 · 오프라인 우선 하이브리드 앱 · 이번 달 금융 SMS 분석 · 새 알림/SMS 거래 후보 자동 감지 · 영수증 OCR · Google/카카오/네이버/Apple 로그인 · Firebase Auth/Firestore · 금융기관 계정 직접 조회는 제공하지 않습니다.</p><a href="https://github.com/softm/softm.android.gagyebu" target="_blank" rel="noopener noreferrer" class="inline-link">GitHub 프로젝트 ${ico('arrowright',15)}</a><p class="settings-about"><a class="inline-link" href="./privacy.html" target="_blank" rel="noopener noreferrer">개인정보처리방침</a><br/>화면 하단에는 개인정보 선택을 반영한 네이티브 광고가 표시될 수 있습니다.</p></section></div>`;
 }
 function openModal(content,context={}){modalContext=context;$('#modalHost').innerHTML=`<div class="modal-backdrop" data-action="dismiss-modal"><div class="dialog" role="dialog" aria-modal="true" aria-label="${esc(context.title||'상세 입력')}"><div class="dialog-head"><div><p class="eyebrow">GAGYEBU</p><h2>${esc(context.title||'입력')}</h2></div><button class="icon-btn" data-action="dismiss-modal" aria-label="닫기">${ico('close',22)}</button></div><div class="dialog-content">${content}</div></div></div>`;document.body.classList.add('modal-open');setTimeout(()=>$('#modalHost input:not([type=hidden]),#modalHost select,#modalHost textarea')?.focus(),30);}
-function closeModal(){modalContext=null;$('#modalHost').innerHTML='';document.body.classList.remove('modal-open');}
+function closeModal(){const returnFocus=modalContext?.returnFocus;modalContext=null;$('#modalHost').innerHTML='';document.body.classList.remove('modal-open');if(returnFocus?.isConnected)returnFocus.focus({preventScroll:true});}
+function sourceTextSection(label,text){return text?`<section class="source-section"><h3>${esc(label)}</h3><pre class="source-text">${esc(text)}</pre></section>`:'';}
+async function openTransactionSource(t){
+ const returnFocus=document.activeElement;
+ const actions=`<div class="form-actions source-actions"><button type="button" class="btn btn-danger-outline" data-action="delete-transaction" data-id="${esc(t.id)}">${ico('trash',16)} 거래 삭제</button><button type="button" class="btn btn-secondary" data-action="dismiss-modal">닫기</button><button type="button" class="btn btn-secondary" data-action="edit-transaction" data-id="${esc(t.id)}">거래 수정</button>${t.status==='pending'?`<button type="button" class="btn btn-primary" data-action="confirm-transaction" data-id="${esc(t.id)}">${ico('check',18)} 가계부에 추가</button>`:''}</div>`;
+ openModal(`<div class="source-summary"><span>${t.status==='pending'?'등록할 거래':'등록된 거래'}</span><strong>${esc(t.title)}</strong><b>${esc(kindLabel(t.kind))} · ${m(t.amount)}</b><p>${dateFmt(t.date)} · ${esc(acc(t.accountId)?.name||'계정 미지정')} · ${esc(category(t.categoryId)?.name||kindLabel(t.kind))}</p></div><div id="transactionSourceBody" aria-live="polite" aria-busy="true"><p class="source-notice">원본을 불러오는 중입니다…</p></div>${actions}`,{title:'거래 원본',type:'transaction-source',transactionId:t.id,returnFocus});
+ const context=modalContext;
+ setTimeout(()=>{if(modalContext===context)$('#modalHost .dialog-head button')?.focus({preventScroll:true});},30);
+ const show=html=>{if(modalContext!==context)return;const el=$('#transactionSourceBody');if(el){el.innerHTML=html;el.setAttribute('aria-busy','false');}};
+ const unavailable=message=>`<div class="source-notice"><strong>원본을 확인할 수 없습니다</strong><p>${esc(message)}</p></div>${sourceTextSection('저장된 출처 설명',t.sourceText)}`;
+ if(String(t.source||'').startsWith('android-')){
+  const captureId=String(t.sourceImportKey||'').match(/^android:([a-f0-9]{64})$/)?.[1];
+  if(!hasNativeBridge()){show(unavailable('문자·알림 원본은 수집한 Android 기기에서 확인할 수 있습니다.'));return;}
+  if(!captureId){show(unavailable('이 거래에 연결된 원본을 찾을 수 없습니다. 원래 문자나 알림을 확인해 주세요.'));return;}
+  try{
+   const capture=await nativeRequest('captureSource',{captureId});
+   if(!capture||(!capture.title&&!capture.body)){show(unavailable('이 기기에 보관된 원본이 없습니다. 다른 기기에서 가져왔거나 보관된 원문을 삭제했을 수 있습니다.'));return;}
+   const received=Number(capture.receivedAt),date=new Date(received);
+   const receivedLabel=received>0&&Number.isFinite(date.getTime())?date.toLocaleString('ko-KR',{year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}):'수신 시각 없음';
+   const metadata=[['종류',capture.sourceType==='sms'?'문자 (SMS)':'앱 알림'],['출처 앱',capture.sourceType==='sms'?'':capture.sourceAppName||capture.sourcePackage],['발신자',capture.sender],['수신 시각',receivedLabel]];
+   show(`<dl class="source-meta">${metadata.filter(([,value])=>value).map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>${sourceTextSection('원본 제목',capture.title)}${sourceTextSection('원본 내용',capture.body)}<p class="source-footnote">수집 당시 기기에 보관된 원문입니다. 원본을 열어보는 것만으로 거래가 등록되지는 않습니다.</p>`);
+  }catch{
+   show(`<div class="source-notice"><strong>원본을 불러오지 못했습니다</strong><p>잠시 후 다시 시도해 주세요.</p><button type="button" class="btn btn-secondary" data-action="view-transaction-source" data-id="${esc(t.id)}">다시 시도</button></div>`);
+  }
+  return;
+ }
+ let content=t.source==='csv'?unavailable('이전에 가져온 CSV는 행 위치만 보관되어 있습니다. 원래 CSV 파일에서 해당 행을 확인해 주세요.'):sourceTextSection('가져온 원문',t.sourceText);
+ try{
+  const attachment=t.attachment||(t.attachmentPath?await cloud.getReceipt(t.attachmentPath):null);
+  if(attachment&&/^data:image\/(png|jpeg|webp);base64,/i.test(attachment))content+=`<section class="source-section"><h3>첨부한 영수증</h3><img class="source-receipt" src="${esc(attachment)}" alt="거래에 첨부한 원본 영수증"></section>`;
+ }catch{content+='<p class="source-notice">영수증 사진을 불러오지 못했습니다. 네트워크 연결을 확인하고 다시 열어주세요.</p>';}
+ show(content||unavailable('이 거래에는 보관된 원문이나 영수증이 없습니다.'));
+}
 const optionAccounts=(selected)=>state.accounts.map(a=>`<option value="${esc(a.id)}" ${a.id===selected?'selected':''}>${esc(a.name)}${a.kind==='card'?' · 카드':''}</option>`).join('');
 const optionCategories=(selected,type='expense')=>state.categories.filter(c=>c.type===type).map(c=>`<option value="${esc(c.id)}" ${c.id===selected?'selected':''}>${esc(c.name)}</option>`).join('');
 function openTransaction(t=null,preset={}){
@@ -554,15 +602,16 @@ async function exportJson(){
 function csvEsc(val){let s=String(val??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return `"${s.replace(/"/g,'""')}"`;}
 function exportCsv(){const header=['날짜','내역','금액','구분','계좌','받는계좌','분류','상태','메모','계산식'];const rows=state.transactions.map(t=>[t.date,t.title,t.amount,kindLabel(t.kind),acc(t.accountId)?.name||'',acc(t.toAccountId)?.name||'',category(t.categoryId)?.name||'',t.status==='confirmed'?'확정':'확인필요',t.memo||'',t.expression||'']);
  const content='\uFEFF'+[header,...rows].map(row=>row.map(csvEsc).join(',')).join('\r\n');saveDownload(new Blob([content],{type:'text/csv;charset=utf-8'}),`gagyebu-transactions-${isoDate()}.csv`);toast('거래 CSV를 다운로드했습니다.');}
-async function restoreJson(file){if(file.size>12000000){toast('12MB 이하의 JSON 파일만 복원할 수 있습니다.','error');return;}
- try{const data=JSON.parse(await file.text());validateBackup(data);if(!window.confirm(`백업 거래 ${data.transactions.length}건으로 현재 거래 ${state.transactions.length}건을 전체 교체합니다. 먼저 현재 장부 백업을 다운로드할까요?`))return;
+async function restoreJson(file){const scope=ledgerLink.scope;if(ledgerLink.blocked)return;if(ledgerLink.signed&&!confirm('복원한 내용이 이 계정의 PC와 모바일 장부에 모두 반영됩니다. 계속할까요?'))return;if(file.size>12000000){toast('12MB 이하의 JSON 파일만 복원할 수 있습니다.','error');return;}
+ try{const data=JSON.parse(await file.text());validateBackup(data);if(scope!==ledgerLink.scope)return;if(!window.confirm(`백업 거래 ${data.transactions.length}건으로 현재 거래 ${state.transactions.length}건을 전체 교체합니다. 먼저 현재 장부 백업을 다운로드할까요?`))return;
  if(!await exportJson()){toast('현재 장부 백업이 완료되지 않아 복원을 중단했습니다.','error');return;}if(!window.confirm('현재 장부 백업 다운로드를 확인했습니다. 정말 전체 교체할까요?'))return;
- if(activeUid){for(const transaction of data.transactions)if(transaction.attachment)transaction.attachmentPath=null;await mutate(s=>{Object.assign(s,structuredClone(data));},'백업을 복원하고 클라우드에 저장을 요청했습니다.');}else {await saveState(data);state=data;render();toast('백업에서 복원했습니다.');}ui.month=currentPeriodMonth(state.settings.periodStartDay);closeModal();}catch(e){toast(`복원 실패: ${e.message}`,'error');}}
+ if(activeUid){for(const transaction of data.transactions)if(transaction.attachment)transaction.attachmentPath=null;await mutate(s=>{Object.assign(s,structuredClone(data));},'백업을 복원하고 클라우드에 저장을 요청했습니다.');}else {await saveState(data);if(scope!==ledgerLink.scope)return;state=data;ledgerLink.changed();render();toast('백업에서 복원했습니다.');}ui.month=currentPeriodMonth(state.settings.periodStartDay);closeModal();}catch(e){toast(`복원 실패: ${e.message}`,'error');}}
 async function handleClick(e){const button=e.target.closest('[data-action],[data-tab],[data-filter],[data-day]');if(!button || (button.classList.contains('modal-backdrop') && e.target.closest('.dialog')))return;
  if(button.dataset.tab){e.preventDefault();ui.tab=button.dataset.tab;ui.day=null;ui.visible=80;render();window.scrollTo({top:0,behavior:'instant'});return;}
  if(button.dataset.filter){ui.filter=button.dataset.filter;ui.visible=80;render();return;}
  if(button.dataset.day){ui.day=button.dataset.day;render();return;}
  const action=button.dataset.action,tid=button.dataset.id,t=state.transactions.find(t=>t.id===tid);
+ if(action==='sync-mine'||action==='sync-remote'){ledgerLink.resolve(action==='sync-mine'?'mine':'remote');return;}
  if(action==='native-notification-access'){try{await nativeRequest('openNotificationSettings');}catch(error){toast(error.message,'error');}return;}
  if(action==='native-sms-permission'){try{await nativeRequest('requestSms');}catch(error){toast(error.message,'error');}return;}
  if(action==='native-scan-sms'){try{const result=await nativeRequest('scanSmsHistory');await importNativeCaptures({quiet:false});toast(result.imported?`이번 달 금융 문자 ${result.imported}건을 분석했습니다.`:'이번 달에 새로 가져올 금융 문자가 없습니다.');}catch(error){toast(error.message,'error');}return;}
@@ -611,14 +660,17 @@ async function handleClick(e){const button=e.target.closest('[data-action],[data
   await retryPendingSync(true);return;
  }
  if(action==='dismiss-modal'){if(modalContext?.type==='guest-import')pendingGuestMerge=null;closeModal();return;}
+ if(action==='common-account'){commonAccount?.open();return;}
+ if(action==='common-account-cancel'){await commonAccount?.cancel();return;}
  if(action==='prev-month'||action==='next-month'){ui.month=shiftMonth(ui.month,action==='prev-month'?-1:1);ui.day=null;render();return;}
  if(action==='add-transaction'){openTransaction();return;}
  if(action==='add-on-selected-day'){openTransaction(null,{date:ui.day});return;}
+ if(action==='view-transaction-source'&&t){await openTransactionSource(t);return;}
  if(action==='edit-transaction'&&t){openTransaction(t);return;}
  if(action==='refund-transaction'&&t){openTransaction(null,{kind:'refund',title:`${t.title} 환불`,amount:t.amount,accountId:t.accountId,categoryId:t.categoryId,refundOf:t.id});return;}
  if(action==='confirm-transaction'&&t){if(['transfer','repayment'].includes(t.kind)&&(!t.toAccountId||t.toAccountId===t.accountId)){openTransaction(t);toast('확정 전에 받는 계좌를 지정해주세요.','error');return;}const duplicate=duplicateOf(t,state.transactions);if(duplicate&&!window.confirm('비슷한 거래가 이미 있습니다. 그래도 확정할까요?'))return;
- await mutate(s=>{const item=s.transactions.find(x=>x.id===tid);item.status='confirmed';item.updatedAt=new Date().toISOString();},'가계부에 추가했습니다.');return;}
- if(action==='delete-transaction'&&t){if(!window.confirm(`“${t.title}” ${m(t.amount)} 거래를 삭제할까요?`))return;await mutate(s=>{s.transactions=s.transactions.filter(x=>x.id!==tid);},'거래를 삭제했습니다.');return;}
+ await mutate(s=>{const item=s.transactions.find(x=>x.id===tid);item.status='confirmed';item.updatedAt=new Date().toISOString();},'가계부에 추가했습니다.');if(modalContext?.type==='transaction-source'&&modalContext.transactionId===tid&&state.transactions.find(x=>x.id===tid)?.status==='confirmed')closeModal();return;}
+ if(action==='delete-transaction'&&t){if(!window.confirm(`“${t.title}” ${m(t.amount)} 거래를 삭제할까요?`))return;await mutate(s=>{s.transactions=s.transactions.filter(x=>x.id!==tid);},'거래를 삭제했습니다.');if(modalContext?.type==='transaction-source'&&modalContext.transactionId===tid&&!state.transactions.some(x=>x.id===tid))closeModal();return;}
  if(action==='view-pending'){ui.tab='transactions';ui.filter='pending';render();return;}
  if(action==='show-more'){ui.visible+=100;render();return;}
  if(action==='add-account'){openAccount();return;}
@@ -638,6 +690,7 @@ async function handleClick(e){const button=e.target.closest('[data-action],[data
  if(action==='remove-photo'){if(modalContext){modalContext.attachment=null;modalContext.attachmentPath=null;}button.closest('.attached-image')?.remove();toast('저장하면 첨부사진이 제거됩니다.');return;}
  if(action==='load-demo'){if(state.transactions.length>0){toast('샘플은 빈 장부에서만 불러올 수 있습니다.','error');return;}await mutate(s=>{const demo=createDemoState();s.transactions=demo.transactions;s.accounts=demo.accounts;s.categories=demo.categories;s.settings=demo.settings;},'체험용 데이터를 불러왔습니다.');return;}
  if(action==='reset-all'){
+  if(ledgerLink.signed){toast('계정 장부는 계정 설정의 내 보관소 삭제에서 관리하세요. 비로그인 장부를 초기화하려면 로그아웃하세요.','error');return;}
   if(!window.confirm(`현재 ${activeUid?'클라우드와 기기':'기기'} 장부의 모든 거래·자산·분류·설정을 초기화합니다. 먼저 JSON 백업을 다운로드할까요?`))return;
   if(!await exportJson()){toast('백업이 완료되지 않아 초기화를 중단했습니다.','error');return;}
   if(!window.confirm('삭제한 데이터는 복구하기 어렵습니다. 정말 초기화할까요?'))return;
@@ -684,6 +737,7 @@ async function boot(){
  };
  const nativeReady=installNativeBridge()||(nativeShell&&await waitForNativeBridge());
  if(nativeReady){
+  commonAccount=mountCommonAccount({request:nativeRequest,onChange:account=>{ledgerLink.select(account.user?.uid);if(state)render();}});
   await refreshNativeStatus(false);nativeLaunchCapture=await nativeRequest('consumeLaunch').catch(()=>null);
   nativeImportTargetReady=!cloud.isConfigured();
   if(nativeImportTargetReady){await importNativeCaptures({focusId:nativeLaunchCapture,quiet:true});nativeLaunchCapture=null;}

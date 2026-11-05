@@ -24,8 +24,14 @@ async function deleteEntries(keys){const db=await open();return new Promise((res
  tx.oncomplete=()=>resolve(undefined);tx.onerror=()=>reject(tx.error||new Error('삭제 실패'));tx.onabort=()=>reject(tx.error||new Error('삭제 취소'));
 });}
 /** Guest ledger is always kept in the historical 'main' key. */
-export async function loadState(){return await get('main')||initialState();}
-export async function saveState(state){validateBackup(state);return putEntries([['main',state]]);}
+let suiteUid=null;
+export const selectSuiteLedger=uid=>{suiteUid=uid;};
+const suiteKey=uid=>uid?'suite-ledger:'+uid:'main';
+export const getSuiteCache=uid=>get('suite-base:'+uid);
+export const setSuiteCache=(uid,cache)=>putEntries([['suite-base:'+uid,cache]]);
+export const clearSuiteLedger=uid=>putEntries([[suiteKey(uid),null],['suite-base:'+uid,null]]);
+export async function loadState(uid=suiteUid){return await get(suiteKey(uid))||initialState();}
+export async function saveState(state,uid=suiteUid){validateBackup(state);return putEntries([[suiteKey(uid),state]]);}
 const userKey=uid=>`user:${uid}`;
 export async function loadUserState(uid){if(!uid)throw new Error('로그인 사용자 ID가 필요합니다.');return await get(userKey(uid))||initialState();}
 export async function loadUserDirty(uid){return Boolean(await get(`dirty:${uid}`));}
