@@ -533,6 +533,45 @@ async function openTransactionSource(t){
 }
 const optionAccounts=(selected)=>state.accounts.map(a=>`<option value="${esc(a.id)}" ${a.id===selected?'selected':''}>${esc(a.name)}${a.kind==='card'?' · 카드':''}</option>`).join('');
 const optionCategories=(selected,type='expense')=>state.categories.filter(c=>c.type===type).map(c=>`<option value="${esc(c.id)}" ${c.id===selected?'selected':''}>${esc(c.name)}</option>`).join('');
+function openPendingConfirmation(t){
+ if(!t||t.status!=='pending')return;
+ const kind=t.kind==='income'?'income':'expense';
+ const accountId=kind==='income'&&acc(t.accountId)?.kind==='card'?(state.accounts.find(a=>a.kind==='bank'||a.kind==='cash')?.id||''):t.accountId;
+ const cat=category(t.categoryId)?.type===kind?t.categoryId:suggestCategory(t.title,kind);
+ openModal(`<form id="pendingConfirmForm" class="form-stacked">
+ <p class="form-note">거래 내용을 확인한 뒤 수입 또는 지출로 등록하세요. 기존 수집 원본과 금액은 유지됩니다.</p>
+ <div class="pending-confirm-summary"><strong>${esc(t.title)}</strong><b>${m(t.amount)}</b><small>${dateFmt(t.date)}</small></div>
+ <fieldset class="pending-kind-choice"><legend>가계부 등록 유형</legend>
+ <label><input type="radio" name="kind" value="expense" ${kind==='expense'?'checked':''}><span>지출</span></label>
+ <label><input type="radio" name="kind" value="income" ${kind==='income'?'checked':''}><span>수입</span></label></fieldset>
+ <label>입출금 계좌 / 결제수단<select name="accountId">${optionAccounts(accountId)}</select></label>
+ <label>분류<select name="categoryId">${optionCategories(cat,kind)}</select></label>
+ <div class="form-actions"><button type="button" class="btn btn-secondary" data-action="dismiss-modal">취소</button><button type="submit" class="btn btn-primary">선택한 유형으로 가계부에 추가</button></div>
+ </form>`,{title:'가계부에 추가',type:'pending-confirm',transactionId:t.id});
+ updatePendingConfirmKind();
+}
+function updatePendingConfirmKind(){
+ const f=$('#pendingConfirmForm');if(!f)return;
+ const kind=f.querySelector('[name="kind"]:checked')?.value||'expense';
+ const cat=f.elements.namedItem('categoryId'),previous=cat.value;
+ cat.innerHTML=optionCategories(category(previous)?.type===kind?previous:suggestCategory(state.transactions.find(t=>t.id===modalContext?.transactionId)?.title||'',kind),kind);
+ const account=f.elements.namedItem('accountId');
+ if(kind==='income'&&acc(account.value)?.kind==='card')account.value=state.accounts.find(a=>a.kind==='bank'||a.kind==='cash')?.id||'';
+}
+async function submitPendingConfirmation(e){
+ e.preventDefault();
+ const f=e.target,tid=modalContext?.transactionId,t=state.transactions.find(x=>x.id===tid);
+ if(!t||t.status!=='pending'){toast('확인할 거래를 찾지 못했습니다.','error');return;}
+ const kind=f.querySelector('[name="kind"]:checked')?.value;
+ const accountId=f.elements.namedItem('accountId').value,categoryId=f.elements.namedItem('categoryId').value;
+ if(!['expense','income'].includes(kind)){toast('지출 또는 수입을 선택하세요.','error');return;}
+ if(!acc(accountId)||(kind==='income'&&acc(accountId).kind==='card')){toast('수입은 현금 또는 은행 계좌로 등록해야 합니다.','error');return;}
+ if(category(categoryId)?.type!==kind){toast('거래 유형에 맞는 분류를 선택하세요.','error');return;}
+ const candidate={...t,kind,accountId,categoryId,toAccountId:null,refundOf:null};
+ if(duplicateOf(candidate,state.transactions)&&!window.confirm('비슷한 거래가 이미 있습니다. 그래도 추가할까요?'))return;
+ await mutate(s=>{const item=s.transactions.find(x=>x.id===tid);if(!item||item.status!=='pending')throw Error('이미 처리된 거래입니다.');Object.assign(item,{kind,accountId,categoryId,toAccountId:null,refundOf:null,status:'confirmed',updatedAt:new Date().toISOString()});},kind==='income'?'수입으로 가계부에 추가했습니다.':'지출로 가계부에 추가했습니다.');
+ if(state.transactions.find(x=>x.id===tid)?.status==='confirmed')closeModal();
+}
 function openTransaction(t=null,preset={}){
  const kind=preset.kind||t?.kind||'expense';const dat=preset.date||t?.date||isoDate();const acId=preset.accountId||t?.accountId||'bank';const toId=preset.toAccountId||t?.toAccountId||(kind==='repayment'?'card':'cash');
  const val=preset.amount||t?.expression||t?.amount||'';const cat=preset.categoryId||t?.categoryId||suggestCategory(t?.title||'',kind);
@@ -668,8 +707,7 @@ async function handleClick(e){const button=e.target.closest('[data-action],[data
  if(action==='view-transaction-source'&&t){await openTransactionSource(t);return;}
  if(action==='edit-transaction'&&t){openTransaction(t);return;}
  if(action==='refund-transaction'&&t){openTransaction(null,{kind:'refund',title:`${t.title} 환불`,amount:t.amount,accountId:t.accountId,categoryId:t.categoryId,refundOf:t.id});return;}
- if(action==='confirm-transaction'&&t){if(['transfer','repayment'].includes(t.kind)&&(!t.toAccountId||t.toAccountId===t.accountId)){openTransaction(t);toast('확정 전에 받는 계좌를 지정해주세요.','error');return;}const duplicate=duplicateOf(t,state.transactions);if(duplicate&&!window.confirm('비슷한 거래가 이미 있습니다. 그래도 확정할까요?'))return;
- await mutate(s=>{const item=s.transactions.find(x=>x.id===tid);item.status='confirmed';item.updatedAt=new Date().toISOString();},'가계부에 추가했습니다.');if(modalContext?.type==='transaction-source'&&modalContext.transactionId===tid&&state.transactions.find(x=>x.id===tid)?.status==='confirmed')closeModal();return;}
+ if(action==='confirm-transaction'&&t){openPendingConfirmation(t);return;}
  if(action==='delete-transaction'&&t){if(!window.confirm(`“${t.title}” ${m(t.amount)} 거래를 삭제할까요?`))return;await mutate(s=>{s.transactions=s.transactions.filter(x=>x.id!==tid);},'거래를 삭제했습니다.');if(modalContext?.type==='transaction-source'&&modalContext.transactionId===tid&&!state.transactions.some(x=>x.id===tid))closeModal();return;}
  if(action==='view-pending'){ui.tab='transactions';ui.filter='pending';render();return;}
  if(action==='show-more'){ui.visible+=100;render();return;}
@@ -699,7 +737,7 @@ async function handleClick(e){const button=e.target.closest('[data-action],[data
   ui.month=currentPeriodMonth(1);ui.tab='home';render();return;
  }
 }
-async function handleSubmit(e){if(e.target.id==='transactionForm')return saveTransaction(e);if(e.target.id==='accountForm')return saveAccount(e);if(e.target.id==='categoryForm')return saveCategory(e);
+async function handleSubmit(e){if(e.target.id==='pendingConfirmForm')return submitPendingConfirmation(e);if(e.target.id==='transactionForm')return saveTransaction(e);if(e.target.id==='accountForm')return saveAccount(e);if(e.target.id==='categoryForm')return saveCategory(e);
  if(e.target.id==='conflictForm')return applyConflictChoices(e);
  if(e.target.id==='budgetForm'){e.preventDefault();const v=Number(e.target.elements.amount.value),catId=modalContext?.categoryId;if(!Number.isSafeInteger(v)||v<0)return toast('0원 이상의 예산을 입력하세요.','error');closeModal();await mutate(s=>{s.budgets[catId]=v;},'분류 예산을 적용했습니다.');return;}
  if(e.target.id==='settingsForm'){e.preventDefault();const f=e.target;const monthlyBudget=Number(f.elements.monthlyBudget.value),periodStartDay=Number(f.elements.periodStartDay.value),theme=f.elements.theme.value;if(!Number.isSafeInteger(monthlyBudget)||monthlyBudget<0)return toast('예산 금액을 확인해주세요.','error');await mutate(s=>{Object.assign(s.settings,{monthlyBudget,periodStartDay,theme});},'설정을 저장했습니다.');return;}
@@ -711,7 +749,7 @@ function handleInput(e){
  if(e.target.closest('#transactionForm')&&e.target.name==='expression')updateCalcPreview();
  if(e.target.closest('#transactionForm')&&e.target.name==='title'){const f=$('#transactionForm');const kind=f.querySelector('[name="kind"]:checked')?.value;const c=f.elements.namedItem('categoryId');const suggested=suggestCategory(e.target.value,kind);if((kind==='expense'||kind==='income')&&(c.value==='other-expense'||c.value==='other-income')&&suggested!==c.value)c.value=suggested;}
 }
-function handleChange(e){if(e.target.closest('#transactionForm')&&e.target.name==='kind')updateTransactionKind();
+function handleChange(e){if(e.target.closest('#pendingConfirmForm')&&e.target.name==='kind')updatePendingConfirmKind();if(e.target.closest('#transactionForm')&&e.target.name==='kind')updateTransactionKind();
  if(e.target.id==='kindFilter'){ui.kindFilter=e.target.value;ui.visible=80;render();}
  if(e.target.id==='accountFilter'){ui.accountFilter=e.target.value;ui.visible=80;render();}
  if(e.target.id==='categoryFilter'){ui.categoryFilter=e.target.value;ui.visible=80;render();}
