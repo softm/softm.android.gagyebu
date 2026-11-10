@@ -891,3 +891,17 @@ h1,h2,h3,.brand-title,.hero-total,.metric-value,.transaction-name,.transaction-a
 #mobileAccountSlot,#desktopAccountSlot{display:inline-flex;align-items:center}
 .desktop-account-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;color:var(--muted);font-size:12px}
 @media(max-width:400px){.mobile-header-actions .mobile-settings{padding:9px}.mobile-header-actions .mobile-settings span{display:none}}
+
+/* Pending transaction: explicit income/expense decision before adding to ledger. */
+.pending-confirm-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface2)}
+.pending-confirm-summary strong{flex:1;min-width:50%;overflow-wrap:anywhere}
+.pending-confirm-summary b{font-size:17px;color:var(--text);white-space:nowrap}
+.pending-confirm-summary small{width:100%;color:var(--muted)}
+.pending-kind-choice{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:0;border:0;margin:0;min-width:0}
+.pending-kind-choice legend{font-weight:760;font-size:13px;padding-bottom:9px}
+.pending-kind-choice label{position:relative;cursor:pointer}
+.pending-kind-choice input{position:absolute;opacity:0;width:1px;height:1px}
+.pending-kind-choice span{display:block;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 7px;font-size:15px;font-weight:800}
+.pending-kind-choice input:checked+span{background:var(--primary-soft);border-color:var(--primary);color:var(--primary)}
+.pending-kind-choice input[value="expense"]:checked+span{background:#fff0ec;border-color:var(--danger);color:var(--danger)}
+.pending-kind-choice input:focus-visible+span{outline:3px solid #74bbac;outline-offset:2px}
