@@ -247,6 +247,12 @@ public final class MainActivity extends Activity {
                 webReady = trusted(Uri.parse(url));
                 if (webReady) {
                     dispatchNativeEvent("gagyebu:native-status");
+                    // Rebuild the current-month review list after a fresh install/data reset.
+                    // SMS importing is idempotent: CaptureStore rejects previously seen items.
+                    if (supportsSms()
+                        && checkSelfPermission(Manifest.permission.READ_SMS) == PackageManager.PERMISSION_GRANTED) {
+                        scanCurrentMonthSmsHistory(null, null, false);
+                    }
                     maybeExplainCapture();
                 }
             }
@@ -980,8 +986,11 @@ public final class MainActivity extends Activity {
             return;
         }
         if (getPreferences(MODE_PRIVATE).getBoolean("capture_explained", false)) return;
-        getPreferences(MODE_PRIVATE).edit().putBoolean("capture_explained", true).apply();
-        web.postDelayed(() -> new AlertDialog.Builder(this)
+        web.postDelayed(() -> {
+            if (isFinishing() || isDestroyed() || !webReady) return;
+            if (getPreferences(MODE_PRIVATE).getBoolean("capture_explained", false)) return;
+            getPreferences(MODE_PRIVATE).edit().putBoolean("capture_explained", true).apply();
+            new AlertDialog.Builder(this)
             .setTitle("이번 달 거래를 간편하게 시작")
             .setMessage(
                 "이번 달 기존 금융 문자와 앞으로 도착하는 은행·카드 알림에서 " +
@@ -992,7 +1001,8 @@ public final class MainActivity extends Activity {
             .setNegativeButton("나중에", null)
             .setNeutralButton("알림 접근 설정", (dialog, which) -> openNotificationAccess())
             .setPositiveButton("이번 달 문자 분석", (dialog, which) -> requestSmsAccess())
-            .show(), 500);
+            .show();
+        }, 500);
     }
 
     private void recognizeReceipt(Uri uri) {
