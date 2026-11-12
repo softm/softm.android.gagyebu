@@ -27,6 +27,34 @@ async function deleteEntries(keys){const db=await open();return new Promise((res
 let suiteUid=null;
 export const selectSuiteLedger=uid=>{suiteUid=uid;};
 const suiteKey=uid=>uid?'suite-ledger:'+uid:'main';
+/**
+ * Discover old per-Firebase-UID ledger snapshots without changing or deleting
+ * the old IndexedDB keys. The new Cloudflare identity has a sh_ prefix.
+ * Actual transfer always requires explicit user confirmation.
+ */
+export async function listLegacyLocalLedgers(){
+ const db=await open();
+ const keys=await new Promise((resolve,reject)=>{
+  const tx=db.transaction(STORE,'readonly'),req=tx.objectStore(STORE).getAllKeys();
+  req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);
+ });
+ const result=[];
+ for(const key of keys){
+  if(typeof key!=='string')continue;
+  let uid;
+  if(key.startsWith('suite-ledger:'))uid=key.slice('suite-ledger:'.length);
+  else if(key.startsWith('user:'))uid=key.slice('user:'.length);
+  else continue;
+  if(!uid||uid.startsWith('sh_'))continue;
+  const ledger=await get(key);
+  try{
+   if(!ledger||!Array.isArray(ledger.transactions))continue;
+   validateBackup(ledger);
+   if(ledger.transactions.length)result.push({key,uid,transactionCount:ledger.transactions.length,ledger});
+  }catch{/* Ignore unrelated or invalid legacy records. */}
+ }
+ return result;
+}
 export const getSuiteCache=uid=>get('suite-base:'+uid);
 export const setSuiteCache=(uid,cache)=>putEntries([['suite-base:'+uid,cache]]);
 export const clearSuiteLedger=uid=>putEntries([[suiteKey(uid),null],['suite-base:'+uid,null]]);
