@@ -30,6 +30,7 @@ final class SuiteAuthManager {
     private static final String SITE = "gagyebu";
     private static final String ORIGIN = "https://appassets.androidplatform.net";
     private static final String WORKER = "https://softm-hannun-account.softm.workers.dev";
+    private static final String LEDGER_WORKER = "https://gagyebu-api.softm.workers.dev";
     private final Activity activity;
     private final Runnable changed;
     private final SharedPreferences preferences;
@@ -187,7 +188,7 @@ final class SuiteAuthManager {
         return Base64.encodeToString(bytes, Base64.NO_WRAP | Base64.NO_PADDING | Base64.URL_SAFE);
     }
     private static JSONObject request(String path, JSONObject body, String token) throws Exception {
-        HttpsURLConnection connection = (HttpsURLConnection) new URL(WORKER + path).openConnection();
+        HttpsURLConnection connection = (HttpsURLConnection) new URL((path.equals("/api/apps/gagyebu/ledger") ? LEDGER_WORKER : WORKER) + path).openConnection();
         connection.setConnectTimeout(12000);
         connection.setReadTimeout(18000);
         connection.setInstanceFollowRedirects(false);
