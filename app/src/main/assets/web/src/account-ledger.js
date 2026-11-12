@@ -1,5 +1,5 @@
 import {initialState,validateBackup} from './domain.js';
-import {getSuiteCache,setSuiteCache,selectSuiteLedger,loadState,saveState} from './db.js';
+import {getSuiteCache,setSuiteCache,selectSuiteLedger,loadState,saveState,listLegacyLocalLedgers} from './db.js';
 const tables=['accounts','categories','transactions','events'];
 const canonical=x=>x&&typeof x==='object'?(Array.isArray(x)?x.map(canonical):Object.fromEntries(Object.keys(x).sort().map(k=>[k,canonical(x[k])]))):x;
 const equal=(a,b)=>JSON.stringify(canonical(a))===JSON.stringify(canonical(b));
@@ -34,7 +34,19 @@ export function startLedger({request,getState,setState,isBusy,status,onSwitch}){
   selected=(async()=>{let cache=next&&await getSuiteCache(next);if(g!==generation)return;
    let s=await loadState();if(g!==generation)return;
    if(next&&!cache){const guest=await loadState(null);if(g!==generation)return;
-    if(!equal(project(guest),project(initialState()))&&confirm('현재 기기의 기존 장부를 이 한눈 계정에 합칠까요? 취소하면 계정 장부만 엽니다. 기기의 원래 장부는 보존됩니다.'))s=structuredClone(guest);
+    if(!equal(project(guest),project(initialState()))&&confirm('현재 기기의 비로그인 장부를 Cloudflare 계정에 합칠까요? 취소해도 원본은 보존됩니다.'))s=structuredClone(guest);
+    // A previous Firebase UID may have its own offline ledger. Do not
+    // silently adopt it into a different Cloudflare account.
+    const legacy=await listLegacyLocalLedgers();if(g!==generation)return;
+    if(legacy.length===1){
+     const old=legacy[0];
+     if(confirm('기존 Firebase 계정의 기기 장부 '+old.transactionCount+'건을 찾았습니다. 현재 Cloudflare 계정에 복사할까요? 이전 장부 원본은 그대로 남고, 다른 사람 계정의 장부는 선택하면 안 됩니다.')){
+      const base=initialState(),left=project(s),right=project(old.ledger);
+      s=restore(mergeLedger(base,left,right,'mine'),old.ledger);
+     }
+    }else if(legacy.length>1){
+     status('기존 계정 장부가 여러 개입니다. JSON 백업 후 원하는 장부만 수동으로 가져오세요.');
+    }
     await saveState(s,next);await setSuiteCache(next,{base:project(initialState()),revision:null});
    }
    if(g!==generation)return;setState(s);ready=true;if(next)schedule();
