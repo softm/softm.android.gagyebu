@@ -82,6 +82,10 @@ public final class MainActivity extends Activity {
     public static final String ACTION_REVIEW_CAPTURE = "softm.android.gagyebu.action.REVIEW_CAPTURE";
     private static final String AD_LOG_TAG = "GagyebuAds";
 
+    // Online-first rollout is gated until the canonical web app implements the
+    // AndroidLedger bridge (SMS/notifications/OCR and account/ledger sync).
+    // Keep the verified offline bundle as the safe default in existing releases.
+    private static final String REMOTE_HOME = "https://softm.github.io/gagyebu/";
     private static final String HOME =
         "https://appassets.androidplatform.net/assets/web/index.html";
     private static final String TRUSTED_ORIGIN = "https://appassets.androidplatform.net";
