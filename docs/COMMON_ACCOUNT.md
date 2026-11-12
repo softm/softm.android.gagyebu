@@ -1,31 +1,42 @@
-# 한눈 공통 로그인
+# 가계부 Android · Cloudflare 공통 계정
 
-가계부 Android는 한눈 공통 계정 `softm-hannun-api`를 사용한다. 로그인하면 공통 UID의 계정 장부를 열고 PC·Android 사이에서 동기화한다. 비로그인 장부는 계정과 독립적으로 유지한다.
+2026-11-12 코드 전환 기준. 런타임 Firebase Auth·Cloud Functions·Firestore SDK 호출을 제거하고 Cloudflare Worker/D1을 사용하도록 변경했습니다. **GitHub 소스 전환과 실제 사용자 데이터 이관은 별도 단계**입니다.
 
-## 구성
+## 현재 코드 경로
 
-- Firebase Android 앱: `1:166232180116:android:81eb282c96c8619662bb81`, 패키지 `softm.android.gagyebu`.
-- 공개 SDK 설정: `app/src/main/res/values/suite_firebase.xml`. 개인키나 OAuth Secret을 포함하지 않는다.
-- 인증 UI 원본: `/Users/softm/makeme/softm.github.io/shared/platform/v1/account-menu.mjs`, `account-menu.css`.
-- 오프라인 번들: `app/src/main/assets/web/shared/platform/v1/`의 같은 파일. 공통 원본 수정 시 두 사본을 함께 갱신한다.
-- 외부 계정 허브: `https://softm.github.io/account/`.
-- App Link: `https://softm.github.io/account/android/gagyebu/`.
-- App Link를 처리하지 못한 브라우저의 명시적 앱 열기 버튼: `softm.android.gagyebu://auth/callback`.
-- 임의 복귀 URL은 받지 않는다. 공통 registry에 지정된 주소만 허용하고 앱에서 PKCE·요청 ID·기한을 검증한다. 인증 토큰은 링크나 웹 브리지에 노출하지 않는다.
-- 계정 관리 및 회원탈퇴는 외부 허브에서 수행한다. 사용자 동의·제공자 연결을 앱에서 자동 처리하지 않는다.
+- 사용자: 앱 내장 WebView의 공통 계정 메뉴를 누름
+- Android `SuiteAuthManager`: 시스템 브라우저에서 `https://softm-hannun-account.softm.workers.dev/connect` 열기
+- Worker: Google·카카오·네이버 제공자 지원 상태에 따라 웹 로그인, 약관 동의, 한 번만 유효한 PKCE 인증코드 발급
+- 인증 복귀: 고정된 `https://softm.github.io/account/android/gagyebu/` App Link의 URL fragment (대체 `softm.android.gagyebu://auth/callback`)
+- Android: 등록된 복귀 주소·요청 ID·PKCE 검증값·5분 제한 확인 후 `POST /api/connect/exchange` 요청
+- 세션: 사용자 UID와 사이트 범위의 1시간짜리 Cloudflare Bearer Token, Android Keystore AES-GCM 암호화 저장, JS WebView에 토큰 미전달
+- 장부: WebMessage 브리지의 `ledgerSync` → `POST /api/apps/gagyebu/ledger` → Cloudflare Worker/D1 사용자별 AES-GCM 암호문
+- 로컬: IndexedDB 장부와 SQLite 금융 원문은 기존대로 유지. 문자·알림 원문, 영수증 원본, 확인대기 자동 후보는 서버 전송 제외
+- 세션 만료 후에는 같은 Cloudflare 웹 로그인을 다시 해야 합니다. 앱 임의로 세션을 재발급하지 않습니다.
 
-## 운영 반영 단계
+## 이전 데이터 보존
 
-2026-11-05: 공통 Firebase 프로젝트에 Android 앱 등록 완료. 공통 허브·registry·App Link 및 Android 연결 구현 완료. 운영 공통 웹/서버 배포와 실계정 검증은 별도이며 미완료 상태를 적용 완료로 표시하지 않는다.
+- 이전 Firestore `suite-v1/users/{기존UID}/sites/gagyebu/privateLedger` 서버 자료는 **삭제하지 않았습니다**.
+- 앱 로컬 `suite-ledger:{기존UID}` 및 `user:{기존UID}` 저장 내용도 삭제하지 않았습니다.
+- Cloudflare 계정의 최초 진입 시 **기존 Firebase UID의 로컬 장부가 한 개 발견되면 사용자 확인 후 복사**합니다. 사용자 확인 없이 합치지 않습니다. 여러 레거시 장부가 있을 경우 자동으로 선택하지 않습니다.
+- **기기에 없고 Firestore 서버에만 남아 있는 장부**는 자동으로 이전되지 않습니다. 이전 Firebase 신원과 Cloudflare 신원을 검증해 대응시키는 별도 서버 이전 절차가 필요합니다.
+- 기존 서버의 원격 암호화 장부 키를 삭제하거나 변경하면 복호화가 불가능해질 수 있으므로 Firebase 프로젝트, Secret Manager 및 원본 자료를 보존해야 합니다.
+- 앱 데이터 삭제/재설치 전에 전체 JSON 백업을 확보해야 합니다. 앱 데이터 삭제 시 IndexedDB의 레거시 캐시도 사라집니다.
 
-필요한 운영 변경은 `softm.github.io`의 `account/`, `shared/platform/v1/`, `.well-known/assetlinks.json` 배포와 `suiteAuth`의 갱신된 registry 배포이다. `suiteSocialAuth`, 기존 로그인 제공자, Firestore 규칙·자료에는 변경이 필요하지 않다. 원격 푸시는 사용자 승인 후 진행한다.
+## 배포·검증 조건
 
-Play 배포의 앱 서명이 로컬 공통 배포 인증서와 다를 경우 실제 Play 앱 서명 인증서를 추가 확인한 뒤 assetlinks를 확장해야 한다. 현재 assetlinks는 확인된 공통 배포 인증서만 포함한다.
+1. Cloudflare Worker `/health`의 `features.gagyebuLedger` 가 true인지 확인
+2. `softm.github.io/account/android/gagyebu/` 및 `.well-known/assetlinks.json` 배포 확인; Play 서명 인증서 SHA-256과 연결 확인
+3. GitHub Android CI `testDebugUnitTest lintDebug assembleDebug` 통과
+4. 실제 Android 기기에서 웹 로그인 → 앱 복귀 → Cloudflare UID 표시 확인
+5. PC·Android 같은 UID에서 테스트 거래 저장 → 새로고침·재시작 후 서로 확인
+6. 기존 Firestore 장부는 백업 및 이관 검증 전 삭제 금지
 
-## 검증
+현재 코드·CI 검증만으로 실제 사용자 로그인의 성공이나 데이터 완전 이관을 보장하지 않습니다.
 
-- `SuiteAuthSessionTest`: 정확한 복귀 주소·요청 ID·PKCE 벡터, 만료·재사용·변조 경계.
-- `scripts/test-common-account.cjs`: 테스트 장부의 로그인·로그아웃·취소·오류·복원, 네트워크 업로드 없음, 320/393/768/1280px 메뉴.
-- 공통 저장소 `native-handoff.test.mjs`, `native-handoff-ui.cjs`: 등록 Origin, 고정 앱 링크, 기존 계정 명시적 연결, 취소·잘못된 Origin 거부.
-- 공통 기존 `account-handoff-ui.cjs`, `account-menu-ui.cjs`: 기존 웹 로그인 및 메뉴 회귀 검사.
-- 실제 서명된 Release APK 설치 검증 결과와 산출물 SHA-256은 `captures/common-login-20261105/`에 보관한다.
+## 보안
+
+- 고정된 Android WebView 원본 `https://appassets.androidplatform.net`만 가계부 네이티브 요청에 허용합니다.
+- 토큰·PKCE 검증값을 GitHub, JS 브리지, 로그, URL에 저장하지 않습니다. 복귀 URL fragment에는 짧게 유효한 1회용 인증 코드만 전달합니다.
+- D1 암호화는 서버에서 복호화 가능한 AES-GCM이며 단말 종단간 암호화(E2EE)는 아닙니다.
+- 회원탈퇴/원격 보관소 삭제는 Firebase 기존 기록 이관과 삭제 설계가 끝날 때까지 비활성입니다.
