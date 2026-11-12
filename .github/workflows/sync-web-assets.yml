@@ -29,6 +29,15 @@ jobs:
           cd android
           ./scripts/sync-web-assets.sh ../gagyebu
           echo "upstream=$(git -C ../gagyebu rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: android/**/*.gradle*
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-36 build-tools;36.0.0
       - name: Verify Android build
         if: ${{ hashFiles('android/app/src/main/assets/web/**') != '' }}
         working-directory: android
