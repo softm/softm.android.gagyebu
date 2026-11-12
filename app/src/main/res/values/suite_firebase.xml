@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Public Firebase application identifiers, not server credentials. -->
-<resources>
-    <string name="suite_firebase_project_id" translatable="false">softm-hannun-api</string>
-    <string name="suite_firebase_app_id" translatable="false">1:166232180116:android:81eb282c96c8619662bb81</string>
-    <string name="suite_firebase_api_key" translatable="false">AIzaSyDy96oMnY4qe4yhS9qIkd1K1w-XH8NMvPg</string>
-</resources>
