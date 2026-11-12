@@ -21,13 +21,13 @@
 <div class="app-layout">
 <aside class="sidebar" aria-label="주 메뉴">
  <div class="account-brand-row"><a class="brand" href="./" aria-label="가계부 홈"><span class="brand-symbol"><img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAGzho8Y05S2G-l4bpRqJJfFa5ISEfXFOdLxvTizeG4y3ZWjeyMStILtLXcejn4BsqG1-1-O-jh5_EpHAmsXxzuPFF6htujTUBptmi0D1lto4vR2QQiJKLjCcohF9aNG_tqqABbCzNzlbGqKOQNP7r6rpv-ew9ODM-bu8T58sMrgFvPxlGQmvxWTG4v8fqielwopHlQtQMJ_YZ9JxsA7c8_-KOttEQLGZDmcB4nkCg8jjKcmDVODGEIYpi6nstz-a6NKnw" alt="" /></span><span><span class="brand-title">가계부</span><div class="brand-sub" id="brandSub">나만의 소비 기록</div></span></a>
- <span id="desktopAccountSlot"></span></div>
+ <span id="desktopAccountSlot"><button type="button" class="account-entry-button is-loading" data-account-entry aria-label="로그인 상태 확인 중" title="로그인 상태 확인 중" aria-busy="true" disabled><svg class="account-entry-person" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 21v-2a7.5 7.5 0 0 1 15 0v2"/></svg></button></span></div>
  <div class="sidebar-label">MY MONEY</div>
  <nav class="desktop-nav" id="desktopNav" aria-label="PC 메뉴"></nav>
  <div class="sidebar-bottom" id="sideBottom"></div>
 </aside>
 <div style="display:flex;flex-direction:column;min-width:0;flex:1">
-<header class="mobile-header"><a class="mobile-brand" href="./"><span class="brand-symbol"><img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAGzho8Y05S2G-l4bpRqJJfFa5ISEfXFOdLxvTizeG4y3ZWjeyMStILtLXcejn4BsqG1-1-O-jh5_EpHAmsXxzuPFF6htujTUBptmi0D1lto4vR2QQiJKLjCcohF9aNG_tqqABbCzNzlbGqKOQNP7r6rpv-ew9ODM-bu8T58sMrgFvPxlGQmvxWTG4v8fqielwopHlQtQMJ_YZ9JxsA7c8_-KOttEQLGZDmcB4nkCg8jjKcmDVODGEIYpi6nstz-a6NKnw" alt="" /></span>가계부<span class="mobile-sub">/ <span id="mobileTitle">홈</span></span></a><span id="mobileAccountSlot"></span></header>
+<header class="mobile-header"><a class="mobile-brand" href="./"><span class="brand-symbol"><img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAGzho8Y05S2G-l4bpRqJJfFa5ISEfXFOdLxvTizeG4y3ZWjeyMStILtLXcejn4BsqG1-1-O-jh5_EpHAmsXxzuPFF6htujTUBptmi0D1lto4vR2QQiJKLjCcohF9aNG_tqqABbCzNzlbGqKOQNP7r6rpv-ew9ODM-bu8T58sMrgFvPxlGQmvxWTG4v8fqielwopHlQtQMJ_YZ9JxsA7c8_-KOttEQLGZDmcB4nkCg8jjKcmDVODGEIYpi6nstz-a6NKnw" alt="" /></span>가계부<span class="mobile-sub">/ <span id="mobileTitle">홈</span></span></a><span id="mobileAccountSlot"><button type="button" class="account-entry-button is-loading" data-account-entry aria-label="로그인 상태 확인 중" title="로그인 상태 확인 중" aria-busy="true" disabled><svg class="account-entry-person" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 21v-2a7.5 7.5 0 0 1 15 0v2"/></svg></button></span></header>
 <!-- SOFTM-ADFIT 날짜:20261022 : 화면 재렌더와 광고 iframe의 수명주기를 분리 -->
 <main class="main-content" aria-live="polite"><div id="page"><p>가계부 불러오는 중...</p></div><div id="analyticsAdSlot" hidden></div></main>
 </div>
@@ -36,7 +36,61 @@
 <div id="modalHost"></div><div id="toast" class="toast" role="status" aria-live="polite"></div>
 <input id="csvInput" type="file" accept=".csv,text/csv,text/plain" hidden/>
 <input id="jsonInput" type="file" accept=".json,application/json" hidden/>
-<script type="module" src="./src/app.js"></script>
+<style>
+/* Like weatherhannun: a circular progress ring while the account is restoring. */
+.account-entry-button{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;height:44px;padding:4px;border-radius:50%;border:1px solid #d8e1e7;background:#fff;color:#243d54;cursor:pointer;box-shadow:0 2px 7px #122c4912;transition:box-shadow .15s,border-color .15s}
+.account-entry-button .account-entry-person{width:23px;height:23px}
+.account-entry-button.is-loading{cursor:progress;opacity:1}
+.account-entry-button.is-loading .account-entry-person{opacity:.65}
+.account-entry-button.is-loading::after{content:"";position:absolute;inset:-2px;border:2px solid transparent;border-top-color:#f35c80;border-right-color:#f35c8055;border-radius:50%;animation:account-entry-spin .8s linear infinite;pointer-events:none}
+.account-entry-button:disabled{opacity:1}
+.account-entry-button:not(:disabled):hover{box-shadow:0 0 0 3px #f35c801f;border-color:#f35c80}
+.account-entry-button:focus-visible{outline:3px solid #f35c80;outline-offset:3px}
+@keyframes account-entry-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.account-entry-button{transition:none}.account-entry-button.is-loading::after{animation:none;border-color:#f35c80}}
+</style>
+<script>
+// Avoid a permanent spinner if the entry module fails to load.
+const entryFallbackTimer=setTimeout(()=>{
+ for(const id of ['desktopAccountSlot','mobileAccountSlot']){
+  const entry=document.querySelector('#'+id+' [data-account-entry].is-loading');
+  if(!entry)continue;
+  entry.disabled=false;
+  entry.classList.remove('is-loading');
+  entry.removeAttribute('aria-busy');
+  entry.setAttribute('aria-label','로그인 다시 시도');
+  entry.title='로그인 다시 시도';
+ }
+},12000);
+document.addEventListener('click',async event=>{
+ const trigger=event.target.closest('[data-account-entry]');
+ if(!trigger||trigger.disabled)return;
+ clearTimeout(entryFallbackTimer);
+ trigger.disabled=true;
+ trigger.classList.add('is-loading');
+ trigger.setAttribute('aria-busy','true');
+ try{
+  const module=await import('./src/web-account.js?v=entry-spinner-20261113');
+  const mounted=await module.mountWebAccount(()=>{});
+  mounted.menu.open();
+ }catch(error){
+  console.error('로그인 연결 실패',error);
+  alert('로그인 연결 실패: '+(error?.message||String(error)));
+ }finally{
+  if(trigger.isConnected){
+   trigger.disabled=false;
+   trigger.classList.remove('is-loading');
+   trigger.removeAttribute('aria-busy');
+   trigger.setAttribute('aria-label','로그인 다시 시도');
+   trigger.title='로그인 다시 시도';
+  }
+ }
+});
+</script>
+<script type="module">
+const isAndroidShell = navigator.userAgent.includes('SoftmGagyebuAndroid/');
+import(isAndroidShell ? './src/android-app.js' : './src/app.js');
+</script>
 </body>
 </html>
 

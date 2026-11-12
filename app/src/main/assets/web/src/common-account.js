@@ -36,6 +36,8 @@ export function mountCommonAccount({request,onChange=()=>{}}) {
     async logout(){await request('accountLogout');await refresh();}
   };
   const menu=mountSiteAccount({siteId:'gagyebu',name:'가계부',account,accountTarget:'#mobileAccountSlot, #desktopAccountSlot'});
+  // The shared native account menu now owns the header slots and its own aria-busy spinner.
+  for(const id of ['desktopAccountSlot','mobileAccountSlot'])document.getElementById(id)?.querySelector('[data-account-entry]')?.remove();
   window.addEventListener('gagyebu:account-changed',()=>refresh().catch(()=>{}));
   window.addEventListener('gagyebu:native-status',()=>refresh().catch(()=>{}));
   return {account,open:menu.open,close:menu.close,async cancel(){await request('accountCancel');await refresh();},

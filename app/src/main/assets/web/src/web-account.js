@@ -1,23 +1,12 @@
-// PC gagyebu: Cloudflare-only account and encrypted D1 ledger.
-// Legacy Firebase data remains stored for deliberate migration, never as a
-// silent login fallback.
-const WORKER='https://softm-hannun-account.softm.workers.dev';
+// Account authentication is owned by the shared account Worker.
+// Ledger storage is owned exclusively by the gagyebu-api Worker.
+// Never hide the login UI because a service health probe fails.
 let impl=null,loading=null;
 async function backend(){
  if(impl)return impl;
- if(!loading)loading=(async()=>{
-  let health;
-  try{
-   const response=await fetch(WORKER+'/health',{cache:'no-store',signal:AbortSignal.timeout(8000)});
-   if(!response.ok)throw Error('서버 오류');
-   health=await response.json();
-  }catch{
-   throw Error('Cloudflare 계정 서버에 연결하지 못했습니다. 기기에 저장한 기존 장부는 유지됩니다.');
-  }
-  if(health?.ok!==true||health.features?.gagyebuLedger!==true)
-   throw Error('Cloudflare 암호화 장부 서비스가 준비되지 않았습니다. 기기 장부를 유지하고 나중에 다시 연결하세요.');
-  return import('./web-account-cloudflare.js?v=cloudflare-only-20261112');
- })().then(v=>(impl=v,v)).finally(()=>loading=null);
+ if(!loading)loading=import('./web-account-cloudflare.js?v=gagyebu-sdk-syntax-fixed-20261113')
+  .then(module=>(impl=module,module))
+  .finally(()=>{loading=null;});
  return loading;
 }
 export async function mountWebAccount(changed){

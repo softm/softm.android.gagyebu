@@ -1,6 +1,6 @@
 
 const WORKER='https://softm-hannun-account.softm.workers.dev';
-const CLIENT='https://softm.github.io/services/cloudflare-account/src/client.mjs?v=gagyebu-pc-provider-v2';
+const CLIENT='./account-client.mjs?v=gagyebu-local-sdk-syntax-fixed-20261113';
 
 let mounted=null;
 let providerStatus={google:true,kakao:false,naver:false};
@@ -21,10 +21,14 @@ export async function mountCloudflareWebAccount(changed){
  if(mounted)return mounted;
  const {createCloudflareAccountClient}=await import(CLIENT);
  const client=createCloudflareAccountClient({baseUrl:WORKER,siteId:'gagyebu'});
+ let busy=false;
  const account={backend:'cloudflare',get currentUser(){const user=client.currentUser;return user?{uid:user.uid,displayName:user.displayName||'한눈 계정',photoURL:user.photoURL||null}:null;},
   login:provider=>client.login(provider),logout:()=>client.logout(),exchangeLedger:payload=>client.exchangeLedger(payload)};
  const style=el('style');style.textContent=`
- .cf-gagyebu-trigger{display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;min-width:44px;max-width:44px;height:44px;min-height:44px;padding:4px;border:1px solid #d8e1e7;border-radius:50%;background:#fff;color:#243d54;cursor:pointer;overflow:hidden}
+ .cf-gagyebu-trigger{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;width:44px;min-width:44px;max-width:44px;height:44px;min-height:44px;padding:4px;border:1px solid #d8e1e7;border-radius:50%;background:#fff;color:#243d54;cursor:pointer;overflow:visible}
+ .cf-gagyebu-trigger[aria-busy=true]::after{content:'';position:absolute;inset:-2px;border:2px solid transparent;border-top-color:#f35c80;border-right-color:#f35c8055;border-radius:50%;animation:cf-gagyebu-spin .8s linear infinite;pointer-events:none}
+ @keyframes cf-gagyebu-spin{to{transform:rotate(360deg)}}
+ @media(prefers-reduced-motion:reduce){.cf-gagyebu-trigger[aria-busy=true]::after{animation:none;border-color:#f35c80}}
  .cf-gagyebu-trigger .cf-trigger-avatar{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:50%;background:#eaf2fb;color:#1d507a;font-weight:800;overflow:hidden}
  .cf-gagyebu-trigger .cf-trigger-avatar img{width:100%;height:100%;object-fit:cover}
  .cf-gagyebu-trigger .cf-trigger-guest{width:24px;height:24px;color:#4f6278;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -70,9 +74,9 @@ export async function mountCloudflareWebAccount(changed){
  function action(text,callback,primary=false){
   const b=el('button',primary?'primary':'',text);
   b.type='button';b.addEventListener('click',async()=>{
-   b.disabled=true;
+   b.disabled=true;busy=true;renderTriggers();
    try{await callback();}catch(e){message.textContent=e.message||'계정 연결에 실패했습니다.';}
-   finally{b.disabled=false;renderTriggers();}
+   finally{b.disabled=false;busy=false;renderTriggers();}
   });
   dialog.append(b);return b;
  }
@@ -124,6 +128,7 @@ export async function mountCloudflareWebAccount(changed){
   for(const b of buttons){
    b.replaceChildren();
    b.classList.toggle('cf-trigger-signed-in',!!user);
+   b.setAttribute('aria-busy',busy?'true':'false');
    if(!user){
     // Icon-only trigger: preserve descriptive accessible name and tooltip.
     const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
