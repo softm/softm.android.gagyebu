@@ -14,10 +14,10 @@ for required in index.html manifest.webmanifest sw.js src icons; do
 done
 
 mkdir -p "$target_dir/src" "$target_dir/icons"
-rsync -a --exclude='.DS_Store' --exclude='app.js' --exclude='styles.css' "$source_dir/src/" "$target_dir/src/"
+rsync -a --exclude='.DS_Store' --exclude='app.js' --exclude='styles.css' --exclude='cloud.js' --exclude='firebase-config.js' "$source_dir/src/" "$target_dir/src/"
 rsync -a --exclude='.DS_Store' "$source_dir/icons/" "$target_dir/icons/"
 cp "$source_dir/index.html" "$source_dir/manifest.webmanifest" "$source_dir/sw.js" "$target_dir/"
 
-echo "공통 웹 자산을 갱신했습니다. Android 브리지가 있는 app.js와 styles.css는 보존했습니다."
-echo "두 파일의 upstream 변경은 수동 병합한 뒤 전체 테스트를 실행하세요."
+echo "공통 웹 자산을 갱신했습니다. Android 브리지와 Cloudflare 전용 app.js, styles.css, cloud.js를 보존하고 Firebase 설정 복사를 차단했습니다."
+echo "Android 전용 파일의 upstream 변경은 수동 병합한 뒤 전체 테스트를 실행하세요."
 
