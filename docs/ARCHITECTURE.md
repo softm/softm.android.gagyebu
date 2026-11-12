@@ -29,14 +29,15 @@
 - WebView 파일 접근, 콘텐츠 접근, 혼합 콘텐츠, 임의 팝업, 카메라·마이크 권한은 차단합니다.
 - 브리지는 캡처 조회, 가져오기 완료 표시, 권한 설정, 명시적 원문 삭제 및 공통 계정 상태·로그인·로그아웃을 제공합니다. 계정 브리지는 토큰을 웹 화면에 전달하지 않습니다.
 
-## 한눈 공통 로그인
+## Cloudflare 공통 로그인 및 장부 동기화
 
-- 공통 프로젝트는 `softm-hannun-api`, 사이트 범위는 `gagyebu`입니다. 상단 아이콘은 공통 `account-menu.mjs/css`의 번들 복사본을 사용합니다.
-- 인증과 약관 동의는 `https://softm.github.io/account/`를 시스템 브라우저로 열어 진행합니다. 기존 웹 사이트의 로그인·회원가입 및 제공자 공개 상태를 그대로 사용합니다.
-- 앱이 생성한 난수 요청 ID와 PKCE S256 검증값을 공통 허브에 전달합니다. 허브는 등록된 HTTPS App Link로 60초 일회용 코드만 반환하며, 앱은 정확한 복귀 주소·요청 ID·5분 제한을 확인하고 코드를 한 번 교환합니다.
-- Firebase Auth 토큰은 네이티브 SDK에 보관합니다. `suite_site=gagyebu`를 확인한 프로필만 웹에 전달합니다. 요청 검증값은 앱 비공개 설정에 임시 보관하고 복귀·취소·만료 시 제거합니다.
-- 로그인 시 계정별 장부를 열고 수정 사항을 공통 서버에 동기화합니다. 비로그인 장부와 원문은 별도로 유지합니다. 기존 미설정 CloudService 및 기기 장부와 인증 상태를 분리합니다. 계정 관리·회원탈퇴는 공통 허브에서 사용자가 진행합니다.
-- 공개 허브·서버 등록과 앱 링크 배포가 필요합니다. 실제 운영 반영 여부와 검증 기록은 `docs/COMMON_ACCOUNT.md`를 따릅니다.
+- Android WebView가 제공하는 계정 버튼은 네이티브 `SuiteAuthManager`로 요청을 전달합니다.
+- 시스템 브라우저로 `https://softm-hannun-account.softm.workers.dev/connect`를 열고 Google·카카오·네이버 웹 로그인 및 약관을 처리합니다.
+- 앱이 생성한 PKCE S256 verifier·request ID에 연결된 1회용 코드만 고정된 `https://softm.github.io/account/android/gagyebu/` App Link의 fragment로 복귀합니다. 앱은 반환 주소와 5분 제한 및 요청 ID를 검증합니다.
+- Android는 `/api/connect/exchange`에서 Cloudflare 1시간짜리 가계부 전용 Bearer 세션을 발급받고 Android Keystore에 암호화 저장합니다. Firebase Auth는 사용하지 않습니다.
+- WebMessage `ledgerSync` 요청은 네이티브에서 `POST /api/apps/gagyebu/ledger`로 전달되어 Cloudflare D1의 사용자별 AES-GCM 암호문과 동기화됩니다.
+- WebView JavaScript에 Bearer 토큰이 노출되지 않습니다. 로그인 제공자 및 계정 연결은 Cloudflare 공통 웹 계정 화면에서 관리합니다.
+- 기존 Firestore `suite-v1`의 원격 장부는 이전 완료 전까지 서버에 그대로 보존합니다. 기기 내 기존 Firebase UID 장부는 확인 후 선택적으로 복사합니다. 서버에만 남은 내역은 별도 인증된 마이그레이션이 필요합니다.
 
 ## 저장과 중복 방지
 
