@@ -60,7 +60,7 @@
 - READ_SMS: 동의 후 이번 달 1일 이후의 기존 금융 문자만 분석
 - RECEIVE_SMS: 동의 이후 새 금융 문자 수신
 - POST_NOTIFICATIONS: 감지된 거래의 확인 알림 표시
-- INTERNET: 한눈 공통 로그인·계정 관리, 선택적으로 구성되는 기존 Firebase 동기화
+- INTERNET: Cloudflare 공통 웹 로그인·계정 관리 및 D1 암호화 장부 동기화
 - AD_ID: AdMob/AdFit 광고 게재와 측정
 
 연락처와 통화기록 권한은 요청하지 않습니다. SMS 원문은 단말에서만 분석·암호화 보관하며 광고 SDK나 서버로 전달하지 않습니다.
@@ -69,7 +69,7 @@
 
     ./scripts/sync-web-assets.sh ../gagyebu
 
-스크립트는 Android 전용 브리지가 들어 있는 app.js와 styles.css를 덮어쓰지 않습니다. 두 파일의 upstream 변경은 수동 병합한 뒤 전체 검증을 다시 실행해야 합니다.
+스크립트는 Android 전용 app.js, styles.css, cloud.js를 덮어쓰지 않으며 Firebase 웹 설정 파일도 재도입하지 않습니다. Android 전용 변경은 수동 병합 후 전체 검증해야 합니다.
 
 현재 웹 스냅샷의 출처는 [docs/WEB_SNAPSHOT.md](docs/WEB_SNAPSHOT.md)에 기록합니다.
 
@@ -79,6 +79,10 @@
 
 
 
-## 한눈 공통 계정
+## Cloudflare 공통 계정
 
-상단 계정 아이콘에서 기존 한눈 계정의 로그인·회원가입·계정 관리로 진입합니다. 인증은 외부 브라우저에서 진행하고 앱으로 복귀하며, 계정 장부는 PC와 동기화합니다. 기존 기기 장부는 합치기 전에 확인하며, 수집 원문은 보내지 않습니다. 구성·검증 및 운영 반영 상태는 [공통 계정 안내](docs/COMMON_ACCOUNT.md)를 확인하세요.
+Android 런타임은 Firebase Auth·Cloud Functions를 사용하지 않습니다. 상단 계정 아이콘으로 Cloudflare Worker의 웹 로그인을 외부 브라우저에서 진행하고 PKCE 앱 링크로 복귀합니다. PC와 같은 Cloudflare UID로 D1 암호화 장부를 사용하도록 구성했습니다. 문자·알림 원문은 기기에만 보관합니다.
+
+**기존 Firestore 서버에만 남아 있는 과거 가계부 데이터는 자동 이전되지 않습니다.** 기존 서버를 삭제하지 않았으며, 기기에 남은 Firebase UID 장부가 하나일 경우 사용자가 확인한 후 복사할 수 있습니다. 앱 데이터 삭제 전 JSON 백업이 필요합니다. 실계정 로그인·PC/Android 교차 동기화 검증은 별도입니다.
+
+상세 내용은 [Cloudflare 계정 전환 및 이전 지침](docs/COMMON_ACCOUNT.md)을 참고하세요.
