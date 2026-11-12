@@ -15,9 +15,7 @@ export const DEFAULT_ACCOUNTS = [
 ];
 export function initialState(){return {
  version:1, accounts: structuredClone(DEFAULT_ACCOUNTS), categories: structuredClone(DEFAULT_CATEGORIES), transactions:[],
- settings:{monthlyBudget:1200000,periodStartDay:1,theme:'light',hasOnboarded:false}, budgets:{}, events:[],
- tombstones:{accounts:{},categories:{},transactions:{}},
- metaRevision:0,metaCreatedAt:null,metaUpdatedAt:null,metaExists:false
+ settings:{monthlyBudget:1200000,periodStartDay:1,theme:'light',hasOnboarded:false}, budgets:{}, events:[]
 };}
 export const money = (n) => `${Math.round(Number(n)||0).toLocaleString('ko-KR')}원`;
 export function isoDate(date=new Date()){const d=new Date(date);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
@@ -112,31 +110,9 @@ export function parseCsv(text){
 }
 export function validateBackup(o){
  if(!o||o.version!==1||!Array.isArray(o.transactions)||!Array.isArray(o.accounts)||!Array.isArray(o.categories)||typeof o.settings!=='object'||!o.settings)throw Error('지원하지 않는 백업 파일입니다.');
- if(o.transactions.length>100000||o.accounts.length>500||o.categories.length>500||(o.events?.length||0)>1000)throw Error('백업 크기가 허용 범위를 초과했습니다.');
- if(!Number.isSafeInteger(o.settings.monthlyBudget)||o.settings.monthlyBudget<0||o.settings.monthlyBudget>1e15||!Number.isSafeInteger(o.settings.periodStartDay)||o.settings.periodStartDay<1||o.settings.periodStartDay>28||!['light','dark'].includes(o.settings.theme)||typeof o.settings.hasOnboarded!=='boolean')throw Error('백업의 설정 정보가 올바르지 않습니다.');
- if(!o.budgets||typeof o.budgets!=='object'||Array.isArray(o.budgets)||Object.keys(o.budgets).length>500)throw Error('백업의 예산 정보가 올바르지 않습니다.');
- for(const [categoryId,amount] of Object.entries(o.budgets))if(!categoryId||categoryId.length>128||!Number.isSafeInteger(amount)||amount<0||amount>1e15)throw Error('백업의 예산 정보가 올바르지 않습니다.');
- if(o.metaRevision!==undefined&&(!Number.isSafeInteger(o.metaRevision)||o.metaRevision<0))throw Error('백업의 동기화 버전이 올바르지 않습니다.');
- const accountIds=new Set();for(const a of o.accounts){
-  if(!a||typeof a.id!=='string'||!a.id||a.id.length>128||accountIds.has(a.id)||typeof a.name!=='string'||!a.name||a.name.length>32||!['cash','bank','card'].includes(a.kind)||!Number.isSafeInteger(a.openingBalance)||Math.abs(a.openingBalance)>1e15||(a.revision!==undefined&&(!Number.isSafeInteger(a.revision)||a.revision<1))||(a.sourceImportKey!==undefined&&(typeof a.sourceImportKey!=='string'||a.sourceImportKey.length>300)))throw Error('백업의 자산 정보가 올바르지 않습니다.');accountIds.add(a.id);
- }
- const categoryIds=new Set();for(const c of o.categories){
-  if(!c||typeof c.id!=='string'||!c.id||c.id.length>128||categoryIds.has(c.id)||typeof c.name!=='string'||!c.name||c.name.length>32||!['expense','income'].includes(c.type)||typeof c.icon!=='string'||c.icon.length>16||(c.revision!==undefined&&(!Number.isSafeInteger(c.revision)||c.revision<1)))throw Error('백업의 분류 정보가 올바르지 않습니다.');categoryIds.add(c.id);
- }
- const ids=new Set();for(const t of o.transactions){
-  const optionalId=value=>value===undefined||value===null||(typeof value==='string'&&value.length<=128);
-  if(!t||typeof t.id!=='string'||!t.id||t.id.length>128||ids.has(t.id)||!KINDS[t.kind]||!/^\d{4}-\d{2}-\d{2}$/.test(t.date)||!Number.isSafeInteger(t.amount)||t.amount<=0||t.amount>1e15||typeof t.title!=='string'||!t.title||t.title.length>90||!['pending','confirmed'].includes(t.status)||typeof t.accountId!=='string'||!t.accountId||t.accountId.length>128||!optionalId(t.toAccountId)||!optionalId(t.categoryId)||!optionalId(t.refundOf)||(t.memo!==undefined&&typeof t.memo!=='string')||(t.memo?.length||0)>1000||(t.expression!==undefined&&t.expression!==null&&(typeof t.expression!=='string'||t.expression.length>180))||(t.source!==undefined&&t.source!==null&&(typeof t.source!=='string'||t.source.length>32))||(t.sourceText!==undefined&&t.sourceText!==null&&(typeof t.sourceText!=='string'||t.sourceText.length>500))||(t.sourceImportKey!==undefined&&(typeof t.sourceImportKey!=='string'||t.sourceImportKey.length>300))||(t.revision!==undefined&&(!Number.isSafeInteger(t.revision)||t.revision<1))||(t.attachment!==undefined&&t.attachment!==null&&(typeof t.attachment!=='string'||t.attachment.length>2100000||!/^data:image\/(png|jpeg|webp);base64,/i.test(t.attachment)))||(t.attachmentPath!==undefined&&t.attachmentPath!==null&&(typeof t.attachmentPath!=='string'||t.attachmentPath.length>240))||(t.attachmentUploadId!==undefined&&t.attachmentUploadId!==null&&(typeof t.attachmentUploadId!=='string'||!/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(t.attachmentUploadId))))throw Error('백업의 거래 정보가 올바르지 않습니다.');ids.add(t.id);
- }
- if(o.events!==undefined&&!Array.isArray(o.events))throw Error('백업의 작업 이력이 올바르지 않습니다.');
- for(const event of o.events||[]){if(!event||typeof event.id!=='string'||event.id.length>128||typeof event.action!=='string'||typeof event.createdAt!=='string')throw Error('백업의 작업 이력이 올바르지 않습니다.');}
- if(o.tombstones!==undefined){
-  if(!o.tombstones||typeof o.tombstones!=='object'||Array.isArray(o.tombstones))throw Error('백업의 삭제 이력이 올바르지 않습니다.');
-  for(const collection of ['accounts','categories','transactions']){
-   const records=o.tombstones[collection]||{};
-   if(!records||typeof records!=='object'||Array.isArray(records)||Object.keys(records).length>100000)throw Error('백업의 삭제 이력이 올바르지 않습니다.');
-   for(const [recordId,record] of Object.entries(records))if(!record||record.id!==recordId||record.deleted!==true||!Number.isSafeInteger(record.revision)||record.revision<1||typeof record.createdAt!=='string'||typeof record.updatedAt!=='string')throw Error('백업의 삭제 이력이 올바르지 않습니다.');
-  }
- }
+ if(o.transactions.length>100000||o.accounts.length>500||o.categories.length>500)throw Error('백업 크기가 허용 범위를 초과했습니다.');
+ const ids=new Set();for(const a of o.accounts){if(typeof a.id!=='string'||typeof a.name!=='string'||!['cash','bank','card'].includes(a.kind)||!Number.isSafeInteger(+a.openingBalance))throw Error('백업의 자산 정보가 올바르지 않습니다.');}
+ for(const t of o.transactions){if(!t||typeof t.id!=='string'||ids.has(t.id)||!KINDS[t.kind]||!/^\d{4}-\d{2}-\d{2}$/.test(t.date)||!Number.isSafeInteger(t.amount)||t.amount<=0||typeof t.title!=='string'||!['pending','confirmed'].includes(t.status))throw Error('백업의 거래 정보가 올바르지 않습니다.');ids.add(t.id);}
  return true;
 }
 export function createDemoState(){const s=initialState();s.settings.hasOnboarded=true;s.settings.monthlyBudget=800000;s.accounts[1].openingBalance=2500000;const now=new Date();const y=now.getFullYear(),m=now.getMonth();

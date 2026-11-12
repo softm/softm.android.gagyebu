@@ -3,28 +3,33 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<meta name="theme-color" content="#217d71"/>
+<meta name="theme-color" content="#ff637e"/>
 <meta name="description" content="차곡차곡 쓰고 정리하는 무료 가계부. 지출·수입·자산·예산을 로컬에서 관리하고 JSON으로 백업하세요."/>
-<meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
 <title>가계부 · 돈의 흐름을 한눈에</title>
 <link rel="manifest" href="./manifest.webmanifest"/>
-<link rel="icon" type="image/svg+xml" href="./icons/icon.svg"/>
+<link rel="icon" type="image/png" href="https://lh3.googleusercontent.com/aida-public/AB6AXuAGzho8Y05S2G-l4bpRqJJfFa5ISEfXFOdLxvTizeG4y3ZWjeyMStILtLXcejn4BsqG1-1-O-jh5_EpHAmsXxzuPFF6htujTUBptmi0D1lto4vR2QQiJKLjCcohF9aNG_tqqABbCzNzlbGqKOQNP7r6rpv-ew9ODM-bu8T58sMrgFvPxlGQmvxWTG4v8fqielwopHlQtQMJ_YZ9JxsA7c8_-KOttEQLGZDmcB4nkCg8jjKcmDVODGEIYpi6nstz-a6NKnw"/>
+<link rel="apple-touch-icon" href="https://lh3.googleusercontent.com/aida-public/AB6AXuAGzho8Y05S2G-l4bpRqJJfFa5ISEfXFOdLxvTizeG4y3ZWjeyMStILtLXcejn4BsqG1-1-O-jh5_EpHAmsXxzuPFF6htujTUBptmi0D1lto4vR2QQiJKLjCcohF9aNG_tqqABbCzNzlbGqKOQNP7r6rpv-ew9ODM-bu8T58sMrgFvPxlGQmvxWTG4v8fqielwopHlQtQMJ_YZ9JxsA7c8_-KOttEQLGZDmcB4nkCg8jjKcmDVODGEIYpi6nstz-a6NKnw"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
 <link rel="stylesheet" href="./src/styles.css"/>
+<link rel="stylesheet" href="./src/ads.css"/> <!-- SOFTM-ADFIT 날짜:20261022 : 본문·메뉴 공간을 확보하는 광고 전용 스타일 -->
 </head>
 <body>
 <div class="app-layout">
 <aside class="sidebar" aria-label="주 메뉴">
- <a class="brand" href="./index.html" data-tab="home" aria-label="가계부 홈"><span class="brand-symbol"><img src="./icons/icon.png" alt="" /></span><span><span class="brand-title">가계부</span><div class="brand-sub" id="brandSub">나만의 소비 기록</div></span></a>
- <div class="desktop-account-row"><span>한눈 공통 계정</span><span id="desktopAccountSlot"></span></div>
+ <div class="account-brand-row"><a class="brand" href="./" aria-label="가계부 홈"><span class="brand-symbol"><img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAGzho8Y05S2G-l4bpRqJJfFa5ISEfXFOdLxvTizeG4y3ZWjeyMStILtLXcejn4BsqG1-1-O-jh5_EpHAmsXxzuPFF6htujTUBptmi0D1lto4vR2QQiJKLjCcohF9aNG_tqqABbCzNzlbGqKOQNP7r6rpv-ew9ODM-bu8T58sMrgFvPxlGQmvxWTG4v8fqielwopHlQtQMJ_YZ9JxsA7c8_-KOttEQLGZDmcB4nkCg8jjKcmDVODGEIYpi6nstz-a6NKnw" alt="" /></span><span><span class="brand-title">가계부</span><div class="brand-sub" id="brandSub">나만의 소비 기록</div></span></a>
+ <span id="desktopAccountSlot"></span></div>
  <div class="sidebar-label">MY MONEY</div>
  <nav class="desktop-nav" id="desktopNav" aria-label="PC 메뉴"></nav>
  <div class="sidebar-bottom" id="sideBottom"></div>
 </aside>
 <div style="display:flex;flex-direction:column;min-width:0;flex:1">
-<header class="mobile-header"><a class="mobile-brand" href="./index.html" data-tab="home" aria-label="가계부 홈"><span class="brand-symbol"><img src="./icons/icon.png" alt="" /></span>가계부<span class="mobile-sub">/ <span id="mobileTitle">홈</span></span></a><div class="mobile-header-actions"><span id="mobileAccountSlot"></span><button type="button" class="mobile-settings" data-tab="settings" aria-label="설정 열기"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M4.93 4.93l2.12 2.12m9.9 9.9 2.12 2.12M4.93 19.07l2.12-2.12m9.9-9.9 2.12-2.12"/></svg><span>설정</span></button></div></header>
-<main class="main-content" id="page" aria-live="polite"><p>가계부 불러오는 중...</p></main>
+<header class="mobile-header"><a class="mobile-brand" href="./"><span class="brand-symbol"><img src="https://lh3.googleusercontent.com/aida-public/AB6AXuAGzho8Y05S2G-l4bpRqJJfFa5ISEfXFOdLxvTizeG4y3ZWjeyMStILtLXcejn4BsqG1-1-O-jh5_EpHAmsXxzuPFF6htujTUBptmi0D1lto4vR2QQiJKLjCcohF9aNG_tqqABbCzNzlbGqKOQNP7r6rpv-ew9ODM-bu8T58sMrgFvPxlGQmvxWTG4v8fqielwopHlQtQMJ_YZ9JxsA7c8_-KOttEQLGZDmcB4nkCg8jjKcmDVODGEIYpi6nstz-a6NKnw" alt="" /></span>가계부<span class="mobile-sub">/ <span id="mobileTitle">홈</span></span></a><span id="mobileAccountSlot"></span></header>
+<!-- SOFTM-ADFIT 날짜:20261022 : 화면 재렌더와 광고 iframe의 수명주기를 분리 -->
+<main class="main-content" aria-live="polite"><div id="page"><p>가계부 불러오는 중...</p></div><div id="analyticsAdSlot" hidden></div></main>
 </div>
 </div>
 <nav class="mobile-nav" id="mobileNav" aria-label="모바일 메뉴"></nav>
@@ -34,3 +39,4 @@
 <script type="module" src="./src/app.js"></script>
 </body>
 </html>
+

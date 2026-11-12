@@ -1,0 +1,20 @@
+/** SOFTM-ADFIT-LAYOUT START 날짜:20261022 : 광고 전용 공간과 하단 메뉴를 분리하여 가계부 조작을 가리지 않음 */
+:root{--gagyebu-ad-height:0px;--gagyebu-nav-height:0px;--gagyebu-sidebar-width:254px}
+.main-content{padding-bottom:calc(86px + var(--gagyebu-ad-height))}
+.toast{bottom:calc(28px + var(--gagyebu-ad-height))}
+.gagyebu-bottom-ad{position:fixed;z-index:29;left:var(--gagyebu-sidebar-width);right:0;bottom:var(--gagyebu-nav-height);padding:0 0 12px;background:var(--surface);border-top:1px solid var(--border);box-shadow:0 -5px 20px #123c3609;contain:layout style}
+.gagyebu-bottom-ad[hidden],.gagyebu-ad-panel[hidden],.gagyebu-inline-ad[hidden],#analyticsAdSlot[hidden]{display:none!important}
+.gagyebu-ad-controls{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:36px;width:min(100%,var(--gagyebu-slot-width,320px));margin:0 auto;padding:0 8px;font-size:10px;color:var(--muted)}
+.gagyebu-ad-label{font-size:10px;font-weight:600;letter-spacing:.03em;color:var(--muted)}
+.gagyebu-ad-toggle{border:0;border-radius:6px;padding:7px 9px;min-height:32px;background:transparent;color:var(--primary);font-size:11px;font-weight:650;line-height:1.4}
+.gagyebu-ad-toggle:hover{background:var(--primary-soft)}
+.gagyebu-ad-toggle:focus-visible{outline:3px solid var(--primary);outline-offset:-3px}
+.gagyebu-ad-panel{display:flex;justify-content:center;min-width:0}
+.gagyebu-ad-mount{flex:none;margin:0 auto;text-align:center;font-size:0;line-height:0}
+.gagyebu-ad-mount>ins{margin:0!important;vertical-align:top}
+.gagyebu-inline-ad{margin:24px 0 4px;padding:12px 0 16px;border-top:1px solid var(--border);text-align:center}
+.gagyebu-inline-ad>.gagyebu-ad-label{display:block;margin:0 0 10px;line-height:1.4}
+@media(max-width:1180px){:root{--gagyebu-sidebar-width:210px}.main-content{padding-bottom:calc(75px + var(--gagyebu-ad-height))}}
+@media(max-width:830px){:root{--gagyebu-sidebar-width:0px}.main-content{padding-bottom:calc(105px + var(--gagyebu-ad-height))}.toast{bottom:calc(88px + var(--gagyebu-ad-height))}.gagyebu-bottom-ad{padding-bottom:12px;box-shadow:0 -4px 16px #123c3609}}
+@media print{.gagyebu-bottom-ad,#analyticsAdSlot{display:none!important}.main-content{padding-bottom:0!important}}
+/** SOFTM-ADFIT-LAYOUT END */
