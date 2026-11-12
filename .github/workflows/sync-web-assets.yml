@@ -1,0 +1,47 @@
+name: Sync gagyebu web assets
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+permissions:
+  contents: write
+concurrency:
+  group: gagyebu-web-assets-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Android
+        uses: actions/checkout@v4
+        with:
+          path: android
+          persist-credentials: true
+      - name: Checkout canonical web source
+        uses: actions/checkout@v4
+        with:
+          repository: softm/gagyebu
+          ref: main
+          path: gagyebu
+          persist-credentials: false
+      - name: Synchronize safe common assets
+        run: |
+          cd android
+          ./scripts/sync-web-assets.sh ../gagyebu
+          echo "upstream=$(git -C ../gagyebu rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify Android build
+        if: ${{ hashFiles('android/app/src/main/assets/web/**') != '' }}
+        working-directory: android
+        run: ./gradlew testDebugUnitTest lintDebug assembleDebug
+      - name: Commit verified asset updates
+        working-directory: android
+        run: |
+          if git diff --quiet -- app/src/main/assets/web; then
+            echo "Web assets unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/src/main/assets/web
+          git commit -m "chore(android): sync verified gagyebu web assets"
+          git push
