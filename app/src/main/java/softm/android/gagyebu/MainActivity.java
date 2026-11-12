@@ -86,9 +86,12 @@ public final class MainActivity extends Activity {
     // AndroidLedger bridge (SMS/notifications/OCR and account/ledger sync).
     // Keep the verified offline bundle as the safe default in existing releases.
     private static final String REMOTE_HOME = "https://softm.github.io/gagyebu/";
-    private static final String HOME =
+    private static final String LOCAL_HOME =
         "https://appassets.androidplatform.net/assets/web/index.html";
+    private static final String HOME = REMOTE_HOME;
     private static final String TRUSTED_ORIGIN = "https://appassets.androidplatform.net";
+    private static final String REMOTE_ORIGIN = "https://softm.github.io";
+    private boolean usingOfflineCopy;
     private static final String TRUSTED_PATH = "/assets/web/";
     private static final int REQUEST_SMS = 7101;
     private static final int REQUEST_NOTIFICATIONS = 7102;
@@ -263,7 +266,7 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError failure) {
-                if (request.isForMainFrame()) showError();
+                if (request.isForMainFrame()) fallbackOrError();
             }
 
             @Override
@@ -272,7 +275,7 @@ public final class MainActivity extends Activity {
                 WebResourceRequest request,
                 WebResourceResponse response
             ) {
-                if (request.isForMainFrame() && response.getStatusCode() >= 400) showError();
+                if (request.isForMainFrame() && response.getStatusCode() >= 400) fallbackOrError();
             }
 
             @Override
@@ -347,9 +350,9 @@ public final class MainActivity extends Activity {
             WebViewCompat.addWebMessageListener(
                 web,
                 "AndroidLedger",
-                Collections.singleton(TRUSTED_ORIGIN),
+                new java.util.HashSet<>(java.util.Arrays.asList(TRUSTED_ORIGIN, REMOTE_ORIGIN)),
                 (view, message, sourceOrigin, isMainFrame, replyProxy) -> {
-                    if (!isMainFrame || !trustedOrigin(sourceOrigin)) return;
+                    if (!isMainFrame || !trustedOrigin(sourceOrigin) || !trusted(Uri.parse(view.getUrl() == null ? "" : view.getUrl()))) return;
                     handleBridgeMessage(message, replyProxy);
                 }
             );
@@ -1115,20 +1118,24 @@ public final class MainActivity extends Activity {
     private boolean trustedOrigin(Uri uri) {
         return uri != null &&
             "https".equals(uri.getScheme()) &&
-            "appassets.androidplatform.net".equals(uri.getHost()) &&
+            ("appassets.androidplatform.net".equals(uri.getHost()) ||
+             "softm.github.io".equals(uri.getHost())) &&
             (uri.getPort() == -1 || uri.getPort() == 443);
     }
 
     private boolean trusted(Uri uri) {
         String path = uri == null ? null : uri.getPath();
-        return trustedOrigin(uri) && path != null && path.startsWith(TRUSTED_PATH);
+        return trustedOrigin(uri) && path != null &&
+            ("softm.github.io".equals(uri.getHost())
+                ? (path.equals("/gagyebu") || path.startsWith("/gagyebu/"))
+                : path.startsWith(TRUSTED_PATH));
     }
 
     private boolean route(Uri uri) {
         String path = uri == null ? null : uri.getPath();
         if (trustedOrigin(uri) &&
             (TRUSTED_PATH.equals(path) || (TRUSTED_PATH.substring(0, TRUSTED_PATH.length() - 1)).equals(path))) {
-            web.loadUrl(HOME);
+            web.loadUrl(LOCAL_HOME);
             return true;
         }
         if (trusted(uri)) return false;
@@ -1146,6 +1153,18 @@ public final class MainActivity extends Activity {
         return true;
     }
 
+    private void fallbackOrError() {
+        if (!usingOfflineCopy && web != null && web.getUrl() != null &&
+            web.getUrl().startsWith(REMOTE_HOME)) {
+            usingOfflineCopy = true;
+            web.stopLoading();
+            web.loadUrl(LOCAL_HOME);
+            Toast.makeText(this, "온라인 연결 실패: 저장된 오프라인 화면을 엽니다.", Toast.LENGTH_SHORT).show();
+        } else {
+            showError();
+        }
+    }
+
     private void showError() {
         error.setVisibility(View.VISIBLE);
         web.setVisibility(View.GONE);
@@ -1155,7 +1174,8 @@ public final class MainActivity extends Activity {
     private void retry() {
         error.setVisibility(View.GONE);
         web.setVisibility(View.VISIBLE);
-        web.loadUrl(HOME);
+        usingOfflineCopy = false;
+        web.loadUrl(REMOTE_HOME);
     }
 
     private void handleBack() {
