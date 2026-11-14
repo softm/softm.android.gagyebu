@@ -202,11 +202,20 @@ public final class HannunInAppUpdateManager {
             return;
         }
 
+        if (info.installStatus() == InstallStatus.PENDING
+            || info.installStatus() == InstallStatus.DOWNLOADING
+            || info.installStatus() == InstallStatus.INSTALLING) {
+            setStatus(info.installStatus() == InstallStatus.DOWNLOADING
+                ? "downloading" : "in_progress");
+            deliver(callback);
+            return;
+        }
+
         if (info.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
             setStatus("in_progress");
             deliver(callback);
             if (!flowInProgress && resumed && info.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)) {
-                main.post(() -> startFlow(info, HannunUpdatePolicy.Mode.IMMEDIATE, false));
+                main.post(() -> startFlow(info, HannunUpdatePolicy.Mode.IMMEDIATE));
             }
             return;
         }
@@ -237,11 +246,11 @@ public final class HannunInAppUpdateManager {
         );
         if (mode != HannunUpdatePolicy.Mode.NONE && (manual || allowAuto) && resumed) {
             // Return the WebView bridge response before presenting Play's full-screen UI.
-            main.post(() -> startFlow(info, mode, !manual));
+            main.post(() -> startFlow(info, mode));
         }
     }
 
-    private void startFlow(AppUpdateInfo info, HannunUpdatePolicy.Mode mode, boolean automatic) {
+    private void startFlow(AppUpdateInfo info, HannunUpdatePolicy.Mode mode) {
         if (flowInProgress || !resumed || activity.isFinishing() || mode == HannunUpdatePolicy.Mode.NONE) return;
         try {
             int type = mode == HannunUpdatePolicy.Mode.IMMEDIATE
@@ -254,7 +263,7 @@ public final class HannunInAppUpdateManager {
             );
             if (started) {
                 flowInProgress = true;
-                if (automatic) preferences.edit().putLong(KEY_LAST_PROMPT, System.currentTimeMillis()).apply();
+                preferences.edit().putLong(KEY_LAST_PROMPT, System.currentTimeMillis()).apply();
                 setStatus(mode == HannunUpdatePolicy.Mode.IMMEDIATE ? "in_progress" : "prompting");
             } else {
                 setStatus("available_play_only");
