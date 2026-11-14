@@ -115,9 +115,13 @@ public final class HannunInAppUpdateManager {
 
     private void onInstallState(int installStatus, long downloadedBytes, long totalBytes) {
         if (installStatus == InstallStatus.DOWNLOADING) {
-            progressPercent = totalBytes > 0
+            int nextPercent = totalBytes > 0
                 ? (int) Math.min(100, 100.0d * downloadedBytes / totalBytes) : -1;
-            setStatus("downloading");
+            boolean newMilestone = !"downloading".equals(status)
+                || (nextPercent >= 0 && (progressPercent < 0 || nextPercent / 5 != progressPercent / 5));
+            progressPercent = nextPercent;
+            // Download callbacks may fire frequently; avoid flooding WebView's message bridge.
+            if (newMilestone) setStatus("downloading");
         } else if (installStatus == InstallStatus.DOWNLOADED) {
             progressPercent = 100;
             flowInProgress = false;
