@@ -10,6 +10,7 @@ let authUser=null,activeUid=null,cloudReady=true,localDirty=false,cloudStatus='u
 let latestRemote=null,pendingGuestMerge=null,pendingConflict=null,retryingSync=false;
 let nativeStatus=null,nativeImporting=false,nativeRequestSequence=0,nativeBridgeInstalled=false,nativeImportTargetReady=false,nativeLaunchCapture=null;
 const nativeRequests=new Map();
+let nativeUpdateInfo=null;
 const nativeShell=navigator.userAgent.includes('SoftmGagyebuAndroid/');
 const cloud=new CloudService({
  onAuth:async user=>{
@@ -183,6 +184,13 @@ function nativeRequest(action,payload={}){
   try{window.AndroidLedger.postMessage(JSON.stringify({id:requestId,action,payload}));}
   catch(error){clearTimeout(timer);nativeRequests.delete(requestId);reject(error);}
  });
+}
+async function refreshNativeUpdateInfo(shouldRender=true){
+ if(!hasNativeBridge())return null;
+ try{nativeUpdateInfo=await nativeRequest('appInfo');}
+ catch(error){nativeUpdateInfo=null;console.warn('Android app info:',error?.message||error);}
+ if(shouldRender&&state&&ui.tab==='settings')render();
+ return nativeUpdateInfo;
 }
 const nativeTitleKey=value=>String(value||'').replace(/은행|카드|체크|신용|승인|결제|취소|환불|\s/g,'').toLowerCase();
 function nativeDuplicate(candidate,pool){
@@ -490,8 +498,40 @@ function renderNativeSettings(){
  <div class="data-stats">암호화 보관 <strong>${stored}건</strong> · 아직 가져오지 않음 <strong>${pending}건</strong></div>
  <button class="text-danger" data-action="native-clear-history">Android 감지 원문 전체 삭제</button></section>`;
 }
+function renderNativeUpdateSettings(){
+ if(!hasNativeBridge()||!nativeUpdateInfo)return '';
+ const info=nativeUpdateInfo;
+ const messages={
+  not_checked:'업데이트 확인 전',
+  checking:'Google Play 확인 중',
+  up_to_date:'현재 버전이 최신입니다',
+  available:'업데이트 가능 · Google Play 안내',
+  available_play_only:'업데이트 가능 · Play 스토어에서 확인',
+  prompting:'Google Play 업데이트 안내 중',
+  in_progress:'업데이트 진행 중',
+  downloading:'업데이트 다운로드 중',
+  downloaded:'다운로드 완료 · 재시작 필요',
+  canceled:'업데이트가 취소되었습니다',
+  failed:'업데이트 중 오류 발생 · 다시 확인 가능',
+  unavailable:'Google Play 업데이트 상태 확인 불가',
+  not_play_install:'Google Play 설치 버전에서만 인앱 업데이트 가능'
+ };
+ const message=messages[info.status]||'업데이트 상태 미확인';
+ const timestamp=Number(info.lastCheckedAt);
+ const checked=Number.isFinite(timestamp)&&timestamp>0?new Date(timestamp).toLocaleString('ko-KR'):'확인 전';
+ const current=esc(info.versionName||'미확인');
+ const code=Number(info.versionCode)||0;
+ const webSource=info.webSource==='bundled'?'내장 웹 리소스 (앱 업데이트로 교체)':'온라인 웹 리소스 (배포 시 자동 갱신)';
+ const available=Number(info.availableVersionCode);
+ return `<section class="panel native-update-panel"><div class="section-heading"><div><h2>앱 정보 · 업데이트</h2><p>Google Play를 통해 안전하게 앱 업데이트를 진행합니다.</p></div>${ico('download',23)}</div>
+ <p class="settings-about"><strong>설치 버전 ${current}</strong> (코드 ${code})<br/>웹 화면: ${esc(webSource)}<br/>웹 빌드 식별자: 미등록 (버전을 추정하지 않음)</p>
+ <div class="data-stats" role="status" aria-live="polite">${esc(message)}${info.status==='downloading'&&Number.isFinite(Number(info.progressPercent))?` · ${Math.max(0,Math.min(100,Number(info.progressPercent)))}%`:''}${Number.isFinite(available)&&available>0?` · 대상 코드 ${available}`:''}</div>
+ <p class="settings-about">마지막 Play 확인: ${esc(checked)}</p>
+ <div class="settings-actions">${btn('업데이트 확인','native-check-updates','','btn btn-secondary')}</div>
+ <p class="privacy-note">${info.playInstalled?'일반 업데이트는 앱 사용 중 다운로드되며 완료 후 재시작을 안내합니다. 긴급 업데이트는 Google Play가 제공한 우선순위에 따릅니다.':'직접 설치한 APK나 디버그 빌드에서는 Play 인앱 업데이트가 제공되지 않습니다. Play 내부 테스트 또는 스토어 설치 후 확인해 주세요.'}</p></section>`;
+}
 function renderSettings(){
- const s=state.settings;return `${topBar('설정','내 방식대로 가계부를 꾸미고, 기록을 직접 관리하세요.',false)}${renderAuthPanel()}<div class="settings-grid">${renderNativeSettings()}
+ const s=state.settings;return `${topBar('설정','내 방식대로 가계부를 꾸미고, 기록을 직접 관리하세요.',false)}${renderAuthPanel()}<div class="settings-grid">${renderNativeSettings()}${renderNativeUpdateSettings()}
  <section class="panel"><div class="section-heading"><div><h2>예산과 정산기간</h2><p>예산과 월 시작일을 정해주세요.</p></div></div><form id="settingsForm" class="form-stacked"><label>월 예산 (원)<input name="monthlyBudget" inputmode="numeric" type="number" min="0" step="1" value="${s.monthlyBudget||0}" required /></label><label>정산 시작일<select name="periodStartDay">${Array.from({length:28},(_,i)=>i+1).map(v=>`<option value="${v}" ${v===Number(s.periodStartDay)?'selected':''}>매월 ${v}일</option>`).join('')}</select></label><label>화면 테마<select name="theme"><option value="light" ${s.theme!=='dark'?'selected':''}>라이트</option><option value="dark" ${s.theme==='dark'?'selected':''}>다크</option></select></label><button type="submit" class="btn btn-primary">설정 저장</button></form></section>
  <section class="panel"><div class="section-heading"><div><h2>나만의 분류</h2><p>거래 입력 시 선택할 수 있습니다.</p></div><button class="icon-btn" data-action="add-category" aria-label="카테고리 추가">${ico('plus',20)}</button></div><div class="category-settings">${state.categories.map(c=>`<div><span class="category-setting-main">${categoryIcon(c,17,'category-setting-icon')}<span><strong>${esc(c.name)}</strong><small>${c.type==='income'?'수입':'지출'}</small></span></span><button class="icon-btn small" data-action="edit-category" data-id="${esc(c.id)}" aria-label="분류 수정">${ico('edit',16)}</button></div>`).join('')}</div></section>
  <section class="panel"><div class="section-heading"><div><h2>백업과 데이터 관리</h2><p>비로그인 장부는 브라우저에, 로그인 장부는 사용자별 Firestore와 기기 캐시에 보관됩니다.</p></div></div><div class="settings-actions">${btn(`${ico('download',17)} JSON 전체 백업`,'export-json','','btn btn-secondary')}${btn(`${ico('upload',17)} JSON 복원`,'import-json','','btn btn-secondary')}${btn(`${ico('download',17)} 거래 CSV`,'export-csv','','btn btn-secondary')}${btn(`${ico('upload',17)} CSV·문자 가져오기`,'open-import','','btn btn-secondary')}</div><div class="notice-box">${ico('alert',18)} ${activeUid?'로그인 장부는 Firestore에 저장되지만 동기화 완료 전에는 기기 기록을 지우지 마세요. 영수증은 Cloud Storage를 사용합니다.':'비로그인 기록은 이 브라우저에만 보관됩니다. 기기 변경 전 JSON 백업을 내려받으세요.'}</div><div class="data-stats">현재 거래 <strong>${state.transactions.length.toLocaleString()}건</strong> · 확인 필요 <strong>${pendingCount()}건</strong> · 자산 <strong>${state.accounts.length}개</strong></div><button class="text-danger" data-action="reset-all">${activeUid?'로그인 장부 전체 초기화':'로컬 장부 전체 초기화'}</button></section>
@@ -651,6 +691,18 @@ async function handleClick(e){const button=e.target.closest('[data-action],[data
  if(button.dataset.day){ui.day=button.dataset.day;render();return;}
  const action=button.dataset.action,tid=button.dataset.id,t=state.transactions.find(t=>t.id===tid);
  if(action==='sync-mine'||action==='sync-remote'){ledgerLink.resolve(action==='sync-mine'?'mine':'remote');return;}
+ if(action==='native-check-updates'){
+  try{
+   nativeUpdateInfo={...nativeUpdateInfo,status:'checking'};if(ui.tab==='settings')render();
+   nativeUpdateInfo=await nativeRequest('checkForUpdates');
+   if(ui.tab==='settings')render();
+   if(nativeUpdateInfo.status==='up_to_date')toast('현재 최신 버전입니다.');
+   else if(nativeUpdateInfo.status==='not_play_install')toast('Google Play에서 설치한 앱에서만 업데이트를 확인할 수 있습니다.','error');
+   else if(nativeUpdateInfo.status==='unavailable')toast('Google Play 업데이트 상태를 확인하지 못했습니다.','error');
+   else if(nativeUpdateInfo.status==='available_play_only')toast('새 버전이 있습니다. Google Play 앱에서 업데이트해 주세요.');
+  }catch(error){toast(`업데이트 확인 실패: ${error.message}`,'error');await refreshNativeUpdateInfo(false);}
+  return;
+ }
  if(action==='native-notification-access'){try{await nativeRequest('openNotificationSettings');}catch(error){toast(error.message,'error');}return;}
  if(action==='native-sms-permission'){try{await nativeRequest('requestSms');}catch(error){toast(error.message,'error');}return;}
  if(action==='native-scan-sms'){try{const result=await nativeRequest('scanSmsHistory');await importNativeCaptures({quiet:false});toast(result.imported?`이번 달 금융 문자 ${result.imported}건을 분석했습니다.`:'이번 달에 새로 가져올 금융 문자가 없습니다.');}catch(error){toast(error.message,'error');}return;}
@@ -763,6 +815,7 @@ async function boot(){
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#modalHost').innerHTML){closeModal();return;}if(e.key.toLowerCase()==='n'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!$('#modalHost').innerHTML&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName||'')){e.preventDefault();openTransaction();}});
  window.addEventListener('gagyebu:native-capture',()=>{if(nativeImportTargetReady)importNativeCaptures({quiet:true});});
  window.addEventListener('gagyebu:native-status',()=>refreshNativeStatus(true));
+ window.addEventListener('gagyebu:update-status',()=>refreshNativeUpdateInfo(true));
  window.gagyebuReceiptOcr=result=>{
   const form=$('#transactionForm');if(!form||!result)return;
   const amount=Number(result.amount),date=String(result.date||''),merchant=String(result.merchant||'').trim();let filled=0;
@@ -776,7 +829,7 @@ async function boot(){
  const nativeReady=installNativeBridge()||(nativeShell&&await waitForNativeBridge());
  if(nativeReady){
   commonAccount=mountCommonAccount({request:nativeRequest,onChange:account=>{ledgerLink.select(account.user?.uid);if(state)render();}});
-  await refreshNativeStatus(false);nativeLaunchCapture=await nativeRequest('consumeLaunch').catch(()=>null);
+  await refreshNativeStatus(false);await refreshNativeUpdateInfo(false);nativeLaunchCapture=await nativeRequest('consumeLaunch').catch(()=>null);
   nativeImportTargetReady=!cloud.isConfigured();
   if(nativeImportTargetReady){await importNativeCaptures({focusId:nativeLaunchCapture,quiet:true});nativeLaunchCapture=null;}
   render();

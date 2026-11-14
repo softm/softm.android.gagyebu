@@ -76,6 +76,8 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import softm.hannun.update.HannunInAppUpdateManager;
+
 import java.util.Collections;
 
 public final class MainActivity extends Activity {
@@ -124,6 +126,7 @@ public final class MainActivity extends Activity {
     private int interstitialsShown;
     private boolean activityResumed;
     private SuiteAuthManager suiteAuth;
+    private HannunInAppUpdateManager appUpdater;
     private final Runnable interstitialOpportunity = this::showInterstitialIfReady;
 
     @Override
@@ -135,6 +138,7 @@ public final class MainActivity extends Activity {
         buildLayout();
         configureWebView();
         suiteAuth = new SuiteAuthManager(this, () -> dispatchNativeEvent("gagyebu:account-changed"));
+        appUpdater = new HannunInAppUpdateManager(this, () -> dispatchNativeEvent("gagyebu:update-status"));
         suiteAuth.handleIntent(getIntent());
         registerCaptureReceiver();
         initializeAdvertising();
@@ -254,6 +258,7 @@ public final class MainActivity extends Activity {
                 webReady = trusted(Uri.parse(url));
                 if (webReady) {
                     dispatchNativeEvent("gagyebu:native-status");
+                    dispatchNativeEvent("gagyebu:update-status");
                     // Rebuild the current-month review list after a fresh install/data reset.
                     // SMS importing is idempotent: CaptureStore rejects previously seen items.
                     if (supportsSms()
@@ -375,8 +380,22 @@ public final class MainActivity extends Activity {
                 final String ledgerId=requestId;
                 suiteAuth.syncLedger(payload,value->reply(replyProxy,ledgerId,value!=null,value==null?JSONObject.NULL:value,value==null?"장부 연결 실패":null));return;
             }
+            if ("checkForUpdates".equals(action)) {
+                final String updateRequestId = requestId;
+                runOnUiThread(() -> appUpdater.checkManually(
+                    status -> reply(replyProxy, updateRequestId, true, status, null)
+                ));
+                return;
+            }
             Object result;
             switch (action) {
+                case "appInfo" -> {
+                    JSONObject info = appUpdater.snapshot();
+                    String currentPage = web == null ? null : web.getUrl();
+                    info.put("webSource", currentPage != null && currentPage.startsWith(LOCAL_HOME)
+                        ? "bundled" : "online");
+                    result = info;
+                }
                 case "accountStatus" -> result = suiteAuth.snapshot();
                 case "accountLogin" -> { suiteAuth.login(payload.optString("mode", "login")); result = true; }
                 case "accountCancel" -> { suiteAuth.cancel(); result = true; }
@@ -1213,11 +1232,14 @@ public final class MainActivity extends Activity {
         if (adaptiveBannerAd != null) adaptiveBannerAd.resume();
         if (adFitBanner != null) adFitBanner.resume();
         dispatchNativeEvent("gagyebu:native-status");
+        if (appUpdater != null) appUpdater.onResume();
+        dispatchNativeEvent("gagyebu:update-status");
         if (suiteAuth != null) suiteAuth.refresh();
     }
 
     @Override
     protected void onPause() {
+        if (appUpdater != null) appUpdater.onPause();
         activityResumed = false;
         if (adaptiveBannerAd != null) adaptiveBannerAd.pause();
         if (adFitBanner != null) adFitBanner.pause();
@@ -1241,6 +1263,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (appUpdater != null && appUpdater.onActivityResult(requestCode, resultCode)) return;
         if (requestCode != REQUEST_FILE || fileChooser == null) return;
         Uri[] result = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
         fileChooser.onReceiveValue(result);
@@ -1281,6 +1304,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (appUpdater != null) appUpdater.destroy();
         if (suiteAuth != null) suiteAuth.destroy();
         adHandler.removeCallbacks(interstitialOpportunity);
         if (captureReceiver != null) unregisterReceiver(captureReceiver);
