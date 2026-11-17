@@ -90,7 +90,7 @@ public final class MainActivity extends Activity {
     private static final String REMOTE_HOME = "https://softm.github.io/gagyebu/";
     private static final String LOCAL_HOME =
         "https://appassets.androidplatform.net/assets/web/index.html";
-    private static final String HOME = REMOTE_HOME;
+    private static final String HOME = LOCAL_HOME;
     private static final String TRUSTED_ORIGIN = "https://appassets.androidplatform.net";
     private static final String REMOTE_ORIGIN = "https://softm.github.io";
     private boolean usingOfflineCopy;
@@ -101,6 +101,7 @@ public final class MainActivity extends Activity {
     private static final long FIRST_INTERSTITIAL_DELAY_MS = 75_000L;
     private static final long INTERSTITIAL_INTERVAL_MS = 180_000L;
     private static final long EXIT_AD_WAIT_TIMEOUT_MS = 5_000L;
+    private static final long REMOTE_LOAD_TIMEOUT_MS = 5_000L;
     private static final int MAX_INTERSTITIALS_PER_SESSION = 3;
 
     private WebView web;
@@ -125,9 +126,15 @@ public final class MainActivity extends Activity {
     private boolean interstitialLoading;
     private int interstitialsShown;
     private boolean activityResumed;
+    private boolean notificationAccessPromptShown;
     private SuiteAuthManager suiteAuth;
     private HannunInAppUpdateManager appUpdater;
     private final Runnable interstitialOpportunity = this::showInterstitialIfReady;
+    private final Runnable remoteLoadTimeout = () -> {
+        if (web == null || webReady || usingOfflineCopy || isFinishing() || isDestroyed()) return;
+        String currentUrl = web.getUrl();
+        if (currentUrl != null && currentUrl.startsWith(REMOTE_HOME)) fallbackOrError();
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -245,14 +252,19 @@ public final class MainActivity extends Activity {
 
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) {
+                view.removeCallbacks(remoteLoadTimeout);
                 webReady = false;
                 error.setVisibility(View.GONE);
                 web.setVisibility(View.VISIBLE);
                 progress.setVisibility(View.VISIBLE);
+                if (!usingOfflineCopy && url != null && url.startsWith(REMOTE_HOME)) {
+                    view.postDelayed(remoteLoadTimeout, REMOTE_LOAD_TIMEOUT_MS);
+                }
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                view.removeCallbacks(remoteLoadTimeout);
                 view.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
                 progress.setVisibility(View.GONE);
                 webReady = trusted(Uri.parse(url));
@@ -1011,11 +1023,15 @@ public final class MainActivity extends Activity {
             Toast.makeText(this, "시스템 WebView를 업데이트하면 자동 기록 기능을 사용할 수 있습니다.", Toast.LENGTH_LONG).show();
             return;
         }
-        if (getPreferences(MODE_PRIVATE).getBoolean("capture_explained", false)) return;
+        if (getPreferences(MODE_PRIVATE).getBoolean("capture_explained", false)) {
+            maybePromptNotificationAccess();
+            return;
+        }
         web.postDelayed(() -> {
             if (isFinishing() || isDestroyed() || !webReady) return;
             if (getPreferences(MODE_PRIVATE).getBoolean("capture_explained", false)) return;
             getPreferences(MODE_PRIVATE).edit().putBoolean("capture_explained", true).apply();
+            notificationAccessPromptShown = !hasNotificationAccess();
             new AlertDialog.Builder(this)
             .setTitle("이번 달 거래를 간편하게 시작")
             .setMessage(
@@ -1028,6 +1044,24 @@ public final class MainActivity extends Activity {
             .setNeutralButton("알림 접근 설정", (dialog, which) -> openNotificationAccess())
             .setPositiveButton("이번 달 문자 분석", (dialog, which) -> requestSmsAccess())
             .show();
+        }, 500);
+    }
+
+    private void maybePromptNotificationAccess() {
+        if (notificationAccessPromptShown || hasNotificationAccess()) return;
+        notificationAccessPromptShown = true;
+        web.postDelayed(() -> {
+            if (isFinishing() || isDestroyed() || !webReady || hasNotificationAccess()) return;
+            new AlertDialog.Builder(this)
+                .setTitle("금융 앱 알림 접근이 꺼져 있습니다")
+                .setMessage(
+                    "알림 접근을 켜야 앞으로 도착하는 은행·카드 앱 알림에서 거래 후보를 가져올 수 있습니다. " +
+                    "이미 지나간 알림은 다시 가져올 수 없습니다.\n\n" +
+                    "설정에서 가계부의 알림 접근을 허용해 주세요."
+                )
+                .setNegativeButton("나중에", null)
+                .setPositiveButton("설정 열기", (dialog, which) -> openNotificationAccess())
+                .show();
         }, 500);
     }
 
@@ -1173,6 +1207,7 @@ public final class MainActivity extends Activity {
     }
 
     private void fallbackOrError() {
+        if (web != null) web.removeCallbacks(remoteLoadTimeout);
         if (!usingOfflineCopy && web != null && web.getUrl() != null &&
             web.getUrl().startsWith(REMOTE_HOME)) {
             usingOfflineCopy = true;
@@ -1304,6 +1339,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (web != null) web.removeCallbacks(remoteLoadTimeout);
         if (appUpdater != null) appUpdater.destroy();
         if (suiteAuth != null) suiteAuth.destroy();
         adHandler.removeCallbacks(interstitialOpportunity);
