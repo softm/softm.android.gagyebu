@@ -18,6 +18,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.Log;
 import android.view.Gravity;
@@ -107,8 +108,12 @@ public final class MainActivity extends Activity {
     private WebView web;
     private ProgressBar progress;
     private LinearLayout error;
+    private LinearLayout landing;
     private WebViewAssetLoader assetLoader;
     private boolean webReady;
+    private boolean firstContentShown;
+    private int loadGeneration;
+    private long firstLoadStartedAt;
     private boolean bridgeEnabled;
     private String launchCaptureId;
     private ValueCallback<Uri[]> fileChooser;
@@ -180,6 +185,41 @@ public final class MainActivity extends Activity {
         progress.getProgressDrawable().setTint(0xff217d71);
         root.addView(progress, new LinearLayout.LayoutParams(-1, 6));
 
+        landing = new LinearLayout(this);
+        landing.setOrientation(LinearLayout.VERTICAL);
+        landing.setGravity(Gravity.CENTER);
+        landing.setPadding(dp(28), dp(32), dp(28), dp(32));
+        landing.setBackgroundColor(0xfff5f7f5);
+        ImageView landingIcon = new ImageView(this);
+        landingIcon.setImageResource(R.mipmap.ic_launcher);
+        landingIcon.setContentDescription(null);
+        landing.addView(landingIcon, new LinearLayout.LayoutParams(dp(88), dp(88)));
+        TextView landingTitle = new TextView(this);
+        landingTitle.setText("가계부");
+        landingTitle.setTextColor(0xff17675d);
+        landingTitle.setTextSize(26);
+        landingTitle.setGravity(Gravity.CENTER);
+        landingTitle.setTypeface(landingTitle.getTypeface(), android.graphics.Typeface.BOLD);
+        LinearLayout.LayoutParams titleLayout = new LinearLayout.LayoutParams(-1, -2);
+        titleLayout.topMargin = dp(20);
+        landing.addView(landingTitle, titleLayout);
+        TextView landingMessage = new TextView(this);
+        landingMessage.setText("안전하게 장부를 준비하고 있어요");
+        landingMessage.setTextColor(0xff5d716d);
+        landingMessage.setTextSize(15);
+        landingMessage.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams messageLayout = new LinearLayout.LayoutParams(-1, -2);
+        messageLayout.topMargin = dp(8);
+        landing.addView(landingMessage, messageLayout);
+        ProgressBar landingProgress = new ProgressBar(this);
+        landingProgress.setIndeterminate(true);
+        landingProgress.setContentDescription("가계부 불러오는 중");
+        landingProgress.getIndeterminateDrawable().setTint(0xff217d71);
+        LinearLayout.LayoutParams landingProgressLayout = new LinearLayout.LayoutParams(dp(48), dp(48));
+        landingProgressLayout.topMargin = dp(24);
+        landing.addView(landingProgress, landingProgressLayout);
+        root.addView(landing, new LinearLayout.LayoutParams(-1, 0, 1));
+
         error = new LinearLayout(this);
         error.setOrientation(LinearLayout.VERTICAL);
         error.setPadding(40, 72, 40, 40);
@@ -196,6 +236,8 @@ public final class MainActivity extends Activity {
         error.setVisibility(View.GONE);
 
         web = new WebView(this);
+        web.setBackgroundColor(Color.TRANSPARENT);
+        web.setVisibility(View.GONE);
         root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
 
         adContainer = new FrameLayout(this);
@@ -254,8 +296,13 @@ public final class MainActivity extends Activity {
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) {
                 view.removeCallbacks(remoteLoadTimeout);
                 webReady = false;
+                loadGeneration += 1;
+                if (!firstContentShown) firstLoadStartedAt = SystemClock.uptimeMillis();
                 error.setVisibility(View.GONE);
-                web.setVisibility(View.VISIBLE);
+                if (!firstContentShown) {
+                    landing.setVisibility(View.VISIBLE);
+                    web.setVisibility(View.GONE);
+                }
                 progress.setVisibility(View.VISIBLE);
                 if (!usingOfflineCopy && url != null && url.startsWith(REMOTE_HOME)) {
                     view.postDelayed(remoteLoadTimeout, REMOTE_LOAD_TIMEOUT_MS);
@@ -269,6 +316,7 @@ public final class MainActivity extends Activity {
                 progress.setVisibility(View.GONE);
                 webReady = trusted(Uri.parse(url));
                 if (webReady) {
+                    waitForFirstContent(loadGeneration, 0);
                     dispatchNativeEvent("gagyebu:native-status");
                     dispatchNativeEvent("gagyebu:update-status");
                     // Rebuild the current-month review list after a fresh install/data reset.
@@ -1220,6 +1268,8 @@ public final class MainActivity extends Activity {
     }
 
     private void showError() {
+        loadGeneration += 1;
+        landing.setVisibility(View.GONE);
         error.setVisibility(View.VISIBLE);
         web.setVisibility(View.GONE);
         progress.setVisibility(View.GONE);
@@ -1227,9 +1277,38 @@ public final class MainActivity extends Activity {
 
     private void retry() {
         error.setVisibility(View.GONE);
-        web.setVisibility(View.VISIBLE);
+        if (!firstContentShown) landing.setVisibility(View.VISIBLE);
+        web.setVisibility(firstContentShown ? View.VISIBLE : View.GONE);
         usingOfflineCopy = false;
         web.loadUrl(REMOTE_HOME);
+    }
+
+    private int dp(int value) {
+        return Math.round(value * getResources().getDisplayMetrics().density);
+    }
+
+    private void waitForFirstContent(int generation, int attempt) {
+        if (firstContentShown || !webReady || generation != loadGeneration || web == null) return;
+        web.evaluateJavascript(
+            "(function(){var b=document.body;if(!b)return false;" +
+            "return b.innerText.trim().length>0&&b.getBoundingClientRect().height>0;})()",
+            value -> {
+                if (firstContentShown || !webReady || generation != loadGeneration || web == null) return;
+                boolean minimumLandingShown = SystemClock.uptimeMillis() - firstLoadStartedAt >= 600;
+                if ("true".equals(value) && minimumLandingShown) {
+                    firstContentShown = true;
+                    landing.setVisibility(View.GONE);
+                    error.setVisibility(View.GONE);
+                    web.setVisibility(View.VISIBLE);
+                    return;
+                }
+                if (attempt >= 60) {
+                    showError();
+                    return;
+                }
+                web.postDelayed(() -> waitForFirstContent(generation, attempt + 1), 250);
+            }
+        );
     }
 
     private void handleBack() {
